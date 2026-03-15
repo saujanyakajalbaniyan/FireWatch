@@ -1,0 +1,184 @@
+import React, { useState, useEffect } from 'react';
+
+const API_BASE = 'http://localhost:5000/api';
+
+const COLORS = {
+  critical: '#ef4444',
+  high: '#f97316',
+  moderate: '#f59e0b',
+  low: '#22c55e',
+};
+
+function BarChart({ data, title, colorMap }) {
+  const max = Math.max(...Object.values(data), 1);
+  const total = Object.values(data).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="viz-card">
+      <h3 className="viz-title">{title}</h3>
+      <div className="bar-chart">
+        {Object.entries(data).map(([label, value]) => (
+          <div key={label} className="bar-row">
+            <span className="bar-label">{label}</span>
+            <div className="bar-track">
+              <div
+                className="bar-fill"
+                style={{
+                  width: `${(value / max) * 100}%`,
+                  background: colorMap?.[label] || 'var(--fire-gradient)',
+                }}
+              ></div>
+            </div>
+            <span className="bar-value">{value}</span>
+            <span className="bar-pct">{total > 0 ? ((value / total) * 100).toFixed(0) : 0}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DonutChart({ data, title }) {
+  const total = Object.values(data).reduce((a, b) => a + b, 0);
+  const colors = ['#f97316', '#3b82f6', '#22c55e', '#ef4444', '#a855f7'];
+  let cumPct = 0;
+  const segments = Object.entries(data).map(([label, value], idx) => {
+    const pct = total > 0 ? (value / total) * 100 : 0;
+    const start = cumPct;
+    cumPct += pct;
+    return { label, value, pct, start, color: colors[idx % colors.length] };
+  });
+
+  // Build conic-gradient
+  let gradient = 'conic-gradient(';
+  segments.forEach((seg, i) => {
+    gradient += `${seg.color} ${seg.start}% ${seg.start + seg.pct}%`;
+    if (i < segments.length - 1) gradient += ', ';
+  });
+  gradient += ')';
+
+  return (
+    <div className="viz-card">
+      <h3 className="viz-title">{title}</h3>
+      <div className="donut-container">
+        <div className="donut-ring" style={{ background: gradient }}>
+          <div className="donut-hole">
+            <span className="donut-total">{total}</span>
+            <span className="donut-label">Total</span>
+          </div>
+        </div>
+        <div className="donut-legend">
+          {segments.map(seg => (
+            <div key={seg.label} className="legend-item">
+              <span className="legend-dot" style={{ background: seg.color }}></span>
+              <span className="legend-name">{seg.label}</span>
+              <span className="legend-value">{seg.value} ({seg.pct.toFixed(0)}%)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DataVisualization() {
+  const [vizData, setVizData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/visualization-data`);
+      if (res.ok) {
+        const data = await res.json();
+        setVizData(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch viz data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="viz-page">
+        <div className="loading-state">
+          <div className="loading-spinner"></div>
+          <p>Loading visualization data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!vizData) {
+    return (
+      <div className="viz-page">
+        <div className="empty-state">
+          <div className="empty-state-icon">📊</div>
+          <p>No data available for visualization.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="viz-page">
+      <div className="page-header">
+        <h1 className="page-title">📊 Data Visualization</h1>
+        <p className="page-subtitle">
+          Visual analytics for {vizData.total_fires} active fires
+        </p>
+      </div>
+
+      <div className="viz-grid">
+        <BarChart
+          data={vizData.severity_distribution}
+          title="🔥 Severity Distribution"
+          colorMap={COLORS}
+        />
+
+        <BarChart
+          data={vizData.regional_distribution}
+          title="🌍 Fires by Region"
+        />
+
+        <DonutChart
+          data={vizData.day_night}
+          title="☀️ Day vs Night Detections"
+        />
+
+        <BarChart
+          data={vizData.frp_distribution}
+          title="⚡ Fire Radiative Power (MW)"
+          colorMap={{
+            '0-10': '#22c55e',
+            '10-25': '#f59e0b',
+            '25-50': '#f97316',
+            '50-100': '#ef4444',
+            '100+': '#dc2626',
+          }}
+        />
+
+        <BarChart
+          data={vizData.confidence_distribution}
+          title="🎯 Detection Confidence"
+          colorMap={{
+            '0-25': '#ef4444',
+            '25-50': '#f97316',
+            '50-75': '#f59e0b',
+            '75-100': '#22c55e',
+          }}
+        />
+
+        <DonutChart
+          data={vizData.severity_distribution}
+          title="🔴 Severity Breakdown"
+        />
+      </div>
+    </div>
+  );
+}

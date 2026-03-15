@@ -1,0 +1,9 @@
+flask
+flask-cors
+flask-socketio
+requests
+pandas
+numpy
+scikit-learn
+eventlet
+Pillow
