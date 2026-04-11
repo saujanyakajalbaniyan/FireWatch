@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { GoogleMap, MarkerF, useJsApiLoader } from '@react-google-maps/api';
 import 'leaflet/dist/leaflet.css';
 
 const severityColors = {
@@ -10,14 +11,14 @@ const severityColors = {
 };
 
 const severityRadius = {
-  critical: 7,
-  high: 6,
-  moderate: 5,
-  low: 4,
+  critical: 12,
+  high: 10,
+  moderate: 8,
+  low: 6,
 };
 
 function MapUpdater({ fires }) {
-  const map = useMap();
+  useMap();
   const hasZoomed = useRef(false);
 
   useEffect(() => {
@@ -31,8 +32,82 @@ function MapUpdater({ fires }) {
 }
 
 export default function FireMap({ fires }) {
+  const [viewMode, setViewMode] = useState('markers');
+  const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: googleApiKey || '',
+  });
+
+  const heatPoints = useMemo(() => {
+    return fires.map((f) => ({
+      ...f,
+      heatWeight: Math.min(1, (f.frp || 0) / 120 + 0.08),
+    }));
+  }, [fires]);
+
+  if (googleApiKey && isLoaded) {
+    return (
+      <div className="map-container">
+        <div className="map-mode-toggle">
+          <button className={`htab ${viewMode === 'markers' ? 'active' : ''}`} onClick={() => setViewMode('markers')}>Markers</button>
+          <button className={`htab ${viewMode === 'heatmap' ? 'active' : ''}`} onClick={() => setViewMode('heatmap')}>Heatmap</button>
+        </div>
+        <GoogleMap
+          mapContainerStyle={{ width: '100%', height: '100%' }}
+          center={{ lat: 20, lng: 0 }}
+          zoom={2}
+          options={{
+            disableDefaultUI: true,
+            zoomControl: true,
+            styles: [
+              { elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
+              { elementType: 'labels.text.stroke', stylers: [{ color: '#0f172a' }] },
+              { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+            ],
+          }}
+        >
+          {viewMode === 'markers' && fires.map((fire, idx) => (
+            <MarkerF
+              key={fire.id || idx}
+              position={{ lat: fire.latitude, lng: fire.longitude }}
+              title={`${fire.severity?.toUpperCase()} • FRP ${fire.frp} MW`}
+              icon={{
+                path: window.google.maps.SymbolPath.CIRCLE,
+                fillColor: severityColors[fire.severity] || '#f59e0b',
+                fillOpacity: 0.9,
+                strokeColor: '#ffffff',
+                strokeWeight: 1,
+                scale: severityRadius[fire.severity] || 5,
+              }}
+            />
+          ))}
+
+          {viewMode === 'heatmap' && heatPoints.map((fire, idx) => (
+            <MarkerF
+              key={`heat_${fire.id || idx}`}
+              position={{ lat: fire.latitude, lng: fire.longitude }}
+              icon={{
+                path: window.google.maps.SymbolPath.CIRCLE,
+                fillColor: '#ef4444',
+                fillOpacity: Math.max(0.1, fire.heatWeight * 0.7),
+                strokeColor: '#f97316',
+                strokeWeight: 0,
+                scale: Math.max(6, Math.round(fire.heatWeight * 18)),
+              }}
+            />
+          ))}
+        </GoogleMap>
+      </div>
+    );
+  }
+
   return (
     <div className="map-container">
+      <div className="map-mode-toggle">
+        <button className={`htab ${viewMode === 'markers' ? 'active' : ''}`} onClick={() => setViewMode('markers')}>Markers</button>
+        <button className={`htab ${viewMode === 'heatmap' ? 'active' : ''}`} onClick={() => setViewMode('heatmap')}>Heatmap</button>
+      </div>
       <MapContainer
         center={[20, 0]}
         zoom={2}
@@ -49,19 +124,19 @@ export default function FireMap({ fires }) {
 
         <MapUpdater fires={fires} />
 
-        {fires.map((fire, idx) => (
+        {(viewMode === 'markers' ? fires : heatPoints).map((fire, idx) => (
           <CircleMarker
             key={fire.id || idx}
             center={[fire.latitude, fire.longitude]}
-            radius={severityRadius[fire.severity] || 5}
+            radius={viewMode === 'markers' ? (severityRadius[fire.severity] || 5) : Math.max(8, Math.round((fire.heatWeight || 0.2) * 20))}
             pathOptions={{
-              fillColor: severityColors[fire.severity] || '#f59e0b',
-              fillOpacity: 0.8,
-              color: 'rgba(255,255,255,0.4)',
-              weight: 1,
+              fillColor: viewMode === 'markers' ? (severityColors[fire.severity] || '#f59e0b') : '#ef4444',
+              fillOpacity: viewMode === 'markers' ? 0.8 : Math.max(0.12, (fire.heatWeight || 0.2) * 0.7),
+              color: viewMode === 'markers' ? 'rgba(255,255,255,0.6)' : 'rgba(249,115,22,0.0)',
+              weight: viewMode === 'markers' ? 2 : 0,
             }}
           >
-            <Popup>
+            {viewMode === 'markers' && <Popup>
               <div>
                 <div className="popup-title">
                   {fire.severity === 'critical' ? '🔴' :
@@ -100,7 +175,7 @@ export default function FireMap({ fires }) {
                   </span>
                 </div>
               </div>
-            </Popup>
+            </Popup>}
           </CircleMarker>
         ))}
       </MapContainer>

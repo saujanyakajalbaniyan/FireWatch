@@ -4,12 +4,10 @@ echo   FireWatch AI - Forest Fire Detection System
 echo ============================================
 echo.
 echo Starting Frontend (Vite) on http://localhost:5173 ...
-cd /d "%~dp0frontend"
-start "FireWatch Frontend" cmd /k "npm run dev"
+start "FireWatch Frontend" cmd /k "cd /d \"%~dp0frontend\" && call run_frontend.bat"
 
 echo Starting Backend (Flask) on http://localhost:5000 ...
-cd /d "%~dp0backend"
-start "FireWatch Backend" cmd /k "py app.py"
+start "FireWatch Backend" cmd /k "cd /d \"%~dp0backend\" && call run_backend.bat"
 
 echo.
 echo ============================================

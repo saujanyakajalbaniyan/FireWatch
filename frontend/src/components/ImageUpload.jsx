@@ -1,14 +1,30 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { API_BASE } from '../config';
 
-const API_BASE = 'http://localhost:5000/api';
-
-export default function ImageUpload() {
+export default function ImageUpload({ socket }) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleAutoScan = (data) => {
+      if (data && data.analysis) {
+        setResult(data.analysis);
+        if (data.analysis.image_info?.thumbnail) {
+          setPreview(data.analysis.image_info.thumbnail);
+          setSelectedFile({ name: 'Live Auto-Scan Feed', size: 0 });
+        }
+      }
+    };
+
+    socket.on('auto_scan_update', handleAutoScan);
+    return () => socket.off('auto_scan_update', handleAutoScan);
+  }, [socket]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -74,8 +90,8 @@ export default function ImageUpload() {
   return (
     <div className="upload-page">
       <div className="page-header">
-        <h1 className="page-title">📸 Image Fire Detection</h1>
-        <p className="page-subtitle">Upload an image to analyze it for fire and smoke using AI</p>
+        <h1 className="page-title">📸 Live Footage Analysis</h1>
+        <p className="page-subtitle">Real-time manual upload and automated background drone/satellite feed monitor</p>
       </div>
 
       <div className="upload-container">
@@ -204,9 +220,9 @@ export default function ImageUpload() {
 
           {!result && !isAnalyzing && (
             <div className="analysis-placeholder">
-              <div className="empty-state-icon">🔍</div>
-              <h3>Upload an image to begin</h3>
-              <p>Our AI will analyze the image for fire, smoke, and heat signatures</p>
+              <div className="empty-state-icon">📡</div>
+              <h3>Waiting for live feed...</h3>
+              <p>The AI auto-scanner will stream a new image here momentarily, or you can manually upload one.</p>
             </div>
           )}
         </div>

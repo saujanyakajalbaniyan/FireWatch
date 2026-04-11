@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-
-const API_BASE = 'http://localhost:5000/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { API_BASE } from '../config';
 
 const regionEmoji = {
   'North America': '🇺🇸',
@@ -24,11 +23,7 @@ export default function RegionSelector({ fires }) {
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [regionFires, setRegionFires] = useState([]);
 
-  useEffect(() => {
-    fetchRegions();
-  }, []);
-
-  const fetchRegions = async () => {
+  const fetchRegions = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/regions`);
       const data = await res.json();
@@ -36,7 +31,14 @@ export default function RegionSelector({ fires }) {
     } catch (err) {
       console.error('Failed to fetch regions:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchRegions();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchRegions]);
 
   const selectRegion = (region) => {
     setSelectedRegion(region);

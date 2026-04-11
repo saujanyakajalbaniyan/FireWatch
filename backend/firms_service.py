@@ -4,17 +4,17 @@ Fetches near real-time active fire data from NASA's FIRMS API.
 Supports VIIRS S-NPP, VIIRS NOAA-20, and MODIS satellite sources.
 """
 
+import os
 import requests
-import pandas as pd
 import time
 import io
-from datetime import datetime
+from datetime import datetime, UTC
 
 # NASA FIRMS API configuration
 FIRMS_BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
-# Demo MAP_KEY — register your own at https://firms.modaps.eosdis.nasa.gov/api/map_key/
-DEFAULT_MAP_KEY = "DEMO_KEY"
+# Read MAP_KEY from env — register at https://firms.modaps.eosdis.nasa.gov/api/map_key/
+DEFAULT_MAP_KEY = os.getenv("FIRMS_MAP_KEY", "DEMO_KEY")
 
 # Satellite sources
 SOURCES = {
@@ -23,9 +23,30 @@ SOURCES = {
     "MODIS": "MODIS_NRT",
 }
 
+# Regional bounding boxes for fallback queries (smaller than global)
+REGIONAL_BBOXES = [
+    ("-125,24,-66,50",   "North America"),   # Continental US
+    ("-70,-35,-35,5",    "South America"),    # Brazil / Amazon
+    ("10,-15,40,10",     "Central Africa"),   # Central Africa
+    ("95,5,115,25",      "Southeast Asia"),   # SE Asia
+    ("115,-40,155,-10",  "Australia"),        # Australia
+    ("70,5,90,30",       "India"),            # India
+    ("60,50,140,70",     "Siberia"),          # Siberia
+    ("15,34,40,45",      "Mediterranean"),    # Mediterranean
+]
+
 # Cache configuration
 _cache = {}
 _cache_ttl = 300  # 5 minutes
+
+
+def _try_pandas():
+    """Lazy import pandas — not critical if missing."""
+    try:
+        import pandas as pd
+        return pd
+    except ImportError:
+        return None
 
 
 class FIRMSService:
@@ -52,45 +73,145 @@ class FIRMSService:
         if cache_key in _cache:
             cached_time, cached_data = _cache[cache_key]
             if time.time() - cached_time < _cache_ttl:
+                self.fire_data = cached_data
+                self.last_fetch_time = datetime.now(UTC).isoformat()
                 return cached_data
 
+        # Try primary bbox first
+        fires = self._try_fetch_from_api(bbox, days, source)
+
+        # If global bbox failed, try regional bboxes
+        if not fires and bbox == "-180,-90,180,90":
+            print("[FIRMS] Global bbox failed, trying regional queries...")
+            fires = self._fetch_regional_fallback(days, source)
+
+        # Final fallback: demo data
+        if not fires:
+            print("[FIRMS] All API attempts failed, using demo data.")
+            fires = self._get_demo_data()
+
+        # Update cache
+        _cache[cache_key] = (time.time(), fires)
+        self.fire_data = fires
+        self.last_fetch_time = datetime.now(UTC).isoformat()
+
+        print(f"[FIRMS] Returning {len(fires)} fire records.")
+        return fires
+
+    def _try_fetch_from_api(self, bbox, days, source):
+        """Attempt a single FIRMS API fetch. Returns list of fires or empty list."""
         source_id = SOURCES.get(source, SOURCES["VIIRS_SNPP"])
         url = f"{FIRMS_BASE_URL}/{self.map_key}/{source_id}/{bbox}/{days}"
 
         try:
+            print(f"[FIRMS] Fetching: {url[:120]}...")
             response = requests.get(url, timeout=30)
-            response.raise_for_status()
 
-            # Parse CSV data
-            df = pd.read_csv(io.StringIO(response.text))
+            if response.status_code != 200:
+                print(f"[FIRMS] API returned status {response.status_code}")
+                return []
 
-            if df.empty:
-                print("[FIRMS] API returned empty data, using demo data.")
-                return self._get_demo_data()
+            text = response.text.strip()
+            if not text or text.startswith("<!") or text.startswith("{"):
+                print(f"[FIRMS] API returned non-CSV response")
+                return []
 
-            fires = self._process_dataframe(df, source)
-
-            if not fires:
-                print("[FIRMS] No fires parsed from API response, using demo data.")
-                return self._get_demo_data()
-
-            # Update cache
-            _cache[cache_key] = (time.time(), fires)
-            self.fire_data = fires
-            self.last_fetch_time = datetime.utcnow().isoformat()
-
+            fires = self._parse_csv_text(text, source)
             return fires
 
-        except requests.exceptions.RequestException as e:
-            print(f"[FIRMS] Error fetching data: {e}")
-            # Return cached data if available
-            if cache_key in _cache:
-                return _cache[cache_key][1]
-            return self._get_demo_data()
-
+        except requests.exceptions.Timeout:
+            print("[FIRMS] Request timed out")
+            return []
+        except requests.exceptions.ConnectionError:
+            print("[FIRMS] Connection error")
+            return []
         except Exception as e:
             print(f"[FIRMS] Unexpected error: {e}")
-            return self._get_demo_data()
+            return []
+
+    def _fetch_regional_fallback(self, days, source):
+        """Try fetching from multiple regional bboxes and merge results."""
+        all_fires = []
+        for bbox, region_name in REGIONAL_BBOXES:
+            fires = self._try_fetch_from_api(bbox, days, source)
+            if fires:
+                print(f"[FIRMS] Got {len(fires)} fires from {region_name}")
+                all_fires.extend(fires)
+            # Small delay to be polite to the API
+            time.sleep(0.2)
+
+        return all_fires
+
+    def _parse_csv_text(self, text, source):
+        """Parse CSV text into fire records."""
+        pd = _try_pandas()
+
+        if pd is not None:
+            return self._parse_with_pandas(text, source, pd)
+        else:
+            return self._parse_manual_csv(text, source)
+
+    def _parse_with_pandas(self, text, source, pd):
+        """Parse CSV using pandas."""
+        try:
+            df = pd.read_csv(io.StringIO(text))
+            if df.empty:
+                return []
+            return self._process_dataframe(df, source)
+        except Exception as e:
+            print(f"[FIRMS] Pandas parse error: {e}")
+            return self._parse_manual_csv(text, source)
+
+    def _parse_manual_csv(self, text, source):
+        """Fallback CSV parser without pandas."""
+        import csv
+        fires = []
+        try:
+            reader = csv.DictReader(io.StringIO(text))
+            for row in reader:
+                try:
+                    lat = float(row.get("latitude", 0))
+                    lng = float(row.get("longitude", 0))
+                    brightness = float(row.get("bright_ti4", row.get("brightness", 0)))
+                    frp = float(row.get("frp", 0))
+                    conf_raw = row.get("confidence", "nominal")
+
+                    if isinstance(conf_raw, str) and not conf_raw.replace('.', '').isdigit():
+                        confidence = {"low": 30, "nominal": 60, "n": 60, "high": 90, "h": 90, "l": 30}.get(
+                            conf_raw.lower(), 50
+                        )
+                    else:
+                        try:
+                            confidence = int(float(conf_raw))
+                        except Exception:
+                            confidence = 50
+
+                    acq_date = row.get("acq_date", "")
+                    acq_time_raw = str(row.get("acq_time", "")).strip()
+                    acq_time = acq_time_raw.zfill(4) if acq_time_raw.isdigit() else "0000"
+                    daynight = row.get("daynight", "D")
+
+                    severity = self._classify_severity(confidence, frp, brightness)
+
+                    fires.append({
+                        "id": f"{source}_{lat}_{lng}_{acq_date}_{acq_time}",
+                        "latitude": lat,
+                        "longitude": lng,
+                        "brightness": brightness,
+                        "frp": frp,
+                        "confidence": confidence,
+                        "acq_date": acq_date,
+                        "acq_time": f"{acq_time[:2]}:{acq_time[2:]}",
+                        "daynight": daynight,
+                        "satellite": source,
+                        "severity": severity,
+                    })
+                except Exception as e:
+                    continue
+        except Exception as e:
+            print(f"[FIRMS] Manual CSV parse error: {e}")
+
+        return fires
 
     def _process_dataframe(self, df, source):
         """Process raw FIRMS CSV DataFrame into structured fire records."""
@@ -131,10 +252,14 @@ class FIRMSService:
                         conf_raw.lower(), 50
                     )
                 else:
-                    confidence = int(conf_raw)
+                    try:
+                        confidence = int(float(conf_raw))
+                    except Exception:
+                        confidence = 50
 
                 acq_date = str(row.get(col_map.get("acq_date", "acq_date"), ""))
-                acq_time = str(row.get(col_map.get("acq_time", "acq_time"), "")).zfill(4)
+                acq_time_raw = str(row.get(col_map.get("acq_time", "acq_time"), "")).strip()
+                acq_time = acq_time_raw.zfill(4) if acq_time_raw.isdigit() else "0000"
                 daynight = str(row.get(col_map.get("daynight", "daynight"), "D"))
 
                 # Determine severity
@@ -208,7 +333,7 @@ class FIRMSService:
                     "brightness": brightness,
                     "frp": frp,
                     "confidence": confidence,
-                    "acq_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                    "acq_date": datetime.now(UTC).strftime("%Y-%m-%d"),
                     "acq_time": f"{random.randint(0,23):02d}:{random.randint(0,59):02d}",
                     "daynight": random.choice(["D", "N"]),
                     "satellite": "DEMO",
@@ -216,7 +341,7 @@ class FIRMSService:
                 })
 
         self.fire_data = demo_fires
-        self.last_fetch_time = datetime.utcnow().isoformat()
+        self.last_fetch_time = datetime.now(UTC).isoformat()
         return demo_fires
 
     def get_fires_by_region(self, region_bbox, days=1):

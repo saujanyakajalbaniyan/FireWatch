@@ -1,7 +1,14 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 
-export default function Header({ lastUpdated, isFetching, totalFires, onRefresh }) {
+export default function Header({ lastUpdated, isFetching, totalFires, socketStatus, onRefresh, voiceEnabled, onToggleVoice, onTestVoice }) {
+  const syncLabel = {
+    connected: 'Live sync',
+    connecting: 'Syncing',
+    degraded: 'Reconnect',
+    offline: 'Offline',
+  }[socketStatus] || 'Syncing';
+
   return (
     <header className="header">
       <div className="header-brand">
@@ -17,7 +24,7 @@ export default function Header({ lastUpdated, isFetching, totalFires, onRefresh 
           🗺️ Dashboard
         </NavLink>
         <NavLink to="/upload" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          📸 Upload
+          📸 Footage Analysis
         </NavLink>
         <NavLink to="/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           📋 History
@@ -27,6 +34,10 @@ export default function Header({ lastUpdated, isFetching, totalFires, onRefresh 
         </NavLink>
         <NavLink to="/visualizations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           📊 Charts
+        </NavLink>
+
+        <NavLink to="/alert-center" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          📲 Alert Center
         </NavLink>
         <NavLink to="/about" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           ℹ️ About
@@ -38,6 +49,13 @@ export default function Header({ lastUpdated, isFetching, totalFires, onRefresh 
           <span className={`status-dot ${isFetching ? 'fetching' : ''}`}></span>
           {isFetching ? 'Fetching...' : `${totalFires} fires`}
         </div>
+
+        <div className={`status-indicator sync ${socketStatus || 'connecting'}`}>
+          <span className="status-dot"></span>
+          {syncLabel}
+        </div>
+
+
 
         <button className={`refresh-btn ${isFetching ? 'spinning' : ''}`} onClick={onRefresh}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

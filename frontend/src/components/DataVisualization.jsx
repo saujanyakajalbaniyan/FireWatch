@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../config';
 
-const API_BASE = 'http://localhost:5000/api';
 
 const COLORS = {
   critical: '#ef4444',
@@ -77,6 +77,30 @@ function DonutChart({ data, title }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TrendChart({ points, title }) {
+  if (!points?.length) return null;
+  const values = points.map((p) => Number(p.temperature_c || 0));
+  const min = Math.min(...values);
+  const max = Math.max(...values, min + 1);
+  const line = values
+    .map((v, i) => {
+      const x = (i / Math.max(values.length - 1, 1)) * 100;
+      const y = 100 - ((v - min) / (max - min)) * 100;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <div className="viz-card">
+      <h3 className="viz-title">{title}</h3>
+      <svg viewBox="0 0 100 100" className="sensor-chart">
+        <polyline fill="none" stroke="#ef4444" strokeWidth="2" points={line} />
+      </svg>
+      <p className="page-subtitle">Latest: {values[values.length - 1]} C</p>
     </div>
   );
 }
@@ -177,6 +201,16 @@ export default function DataVisualization() {
         <DonutChart
           data={vizData.severity_distribution}
           title="🔴 Severity Breakdown"
+        />
+
+        <DonutChart
+          data={vizData.scene_distribution || { unknown: 0 }}
+          title="🧠 Scene Classification (Fire vs Sunlight / Smoke vs Fog)"
+        />
+
+        <TrendChart
+          points={vizData.sensor_time_series || []}
+          title="🌡 Temperature vs Time"
         />
       </div>
     </div>

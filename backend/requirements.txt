@@ -7,3 +7,12 @@ numpy
 scikit-learn
 eventlet
 Pillow
+twilio
+boto3
+google-cloud-storage
+ultralytics
+torch
+torchvision
+python-dotenv
+Flask-SQLAlchemy  
+ 

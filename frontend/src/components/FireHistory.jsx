@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-
-const API_BASE = 'http://localhost:5000/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { API_BASE } from '../config';
 
 const severityColor = {
   critical: 'var(--severity-critical)',
@@ -12,16 +11,12 @@ const severityColor = {
 export default function FireHistory({ fires }) {
   const [history, setHistory] = useState([]);
   const [alertHistory, setAlertHistory] = useState([]);
+  const [incidents, setIncidents] = useState([]);
   const [activeTab, setActiveTab] = useState('fires');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [searchText, setSearchText] = useState('');
 
-  useEffect(() => {
-    fetchHistory();
-    fetchAlertHistory();
-  }, []);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/history`);
       const data = await res.json();
@@ -29,9 +24,9 @@ export default function FireHistory({ fires }) {
     } catch (err) {
       console.error('Failed to fetch history:', err);
     }
-  };
+  }, []);
 
-  const fetchAlertHistory = async () => {
+  const fetchAlertHistory = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/alert-history?limit=200`);
       const data = await res.json();
@@ -39,7 +34,15 @@ export default function FireHistory({ fires }) {
     } catch (err) {
       console.error('Failed to fetch alert history:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchHistory();
+      fetchAlertHistory();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchAlertHistory, fetchHistory]);
 
   // Current fires as table rows
   const filteredFires = fires.filter(f => {
@@ -83,6 +86,7 @@ export default function FireHistory({ fires }) {
         >
           ⚠️ Alert History ({alertHistory.length})
         </button>
+
       </div>
 
       {/* Current Fires Table */}
@@ -222,6 +226,8 @@ export default function FireHistory({ fires }) {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

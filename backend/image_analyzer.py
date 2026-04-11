@@ -8,7 +8,8 @@ import numpy as np
 from PIL import Image
 import io
 import base64
-from datetime import datetime
+from datetime import datetime, UTC
+from ai_models import AIModelEngine
 
 
 class ImageAnalyzer:
@@ -19,6 +20,9 @@ class ImageAnalyzer:
     FIRE_ORANGE_RANGE = ((200, 100, 0), (255, 200, 80))
     FIRE_YELLOW_RANGE = ((200, 180, 0), (255, 255, 100))
     SMOKE_RANGE = ((100, 100, 100), (200, 200, 210))
+
+    def __init__(self):
+        self.model_engine = AIModelEngine()
 
     def analyze_image(self, image_bytes):
         """
@@ -39,16 +43,46 @@ class ImageAnalyzer:
             smoke_score = self._detect_smoke(img_array)
             brightness_score = self._analyze_brightness(img_array)
             texture_score = self._analyze_texture(img_array)
+            model_prediction = self.model_engine.predict(img_array)
 
             # Combined confidence
-            combined_score = (
+            heuristic_score = (
                 fire_score * 0.45 +
                 smoke_score * 0.20 +
                 brightness_score * 0.20 +
                 texture_score * 0.15
             )
 
-            fire_detected = combined_score > 35
+            if model_prediction.get("model_used"):
+                model_conf = model_prediction.get("confidence", 0)
+                # If YOLO strongly detects it, trust it completely. Never let poor heuristics drag a >50 YOLO score down.
+                if model_conf > 40:
+                    combined_score = max(model_conf, heuristic_score)
+                # If AI model is blind but heuristics strongly detect smoke/fire, trust the heuristics
+                elif model_conf < 15 and (smoke_score > 35 or fire_score > 15):
+                    combined_score = max(heuristic_score * 1.5, smoke_score * 1.4, fire_score * 1.5)
+                else:
+                    # Don't penalize! Take the strongest signal.
+                    combined_score = max(heuristic_score, model_conf)
+            else:
+                combined_score = heuristic_score
+
+            scene_class = model_prediction.get("scene_classification")
+            
+            # Use model_prediction's native fire_detected flag if it exists and is True
+            if model_prediction.get("model_used") and model_prediction.get("fire_detected"):
+                fire_detected = True
+                if not scene_class or scene_class == "normal":
+                    scene_class = "fire"
+            else:
+                if not scene_class or scene_class == "unknown":
+                    scene_class = self._classify_scene_heuristic(fire_score, smoke_score, brightness_score)
+                fire_detected = (scene_class == "fire") or (scene_class == "smoke" and combined_score > 45) or (fire_score > 50)
+
+            # Ensure minimum floor if fire detected but confidence maths fell
+            if fire_detected:
+                combined_score = max(combined_score, 50.0)
+
             confidence = min(round(combined_score, 1), 99.5)
 
             # Classify severity
@@ -62,7 +96,7 @@ class ImageAnalyzer:
                 severity = "low"
 
             # Generate regions of interest
-            regions = self._find_fire_regions(img_array)
+            regions = model_prediction.get("regions") or self._find_fire_regions(img_array)
 
             # Generate recommendations
             recommendations = self._generate_recommendations(
@@ -80,11 +114,18 @@ class ImageAnalyzer:
                 "fire_detected": fire_detected,
                 "confidence": confidence,
                 "severity": severity,
+                "scene_classification": scene_class,
                 "scores": {
                     "fire_color": round(fire_score, 1),
                     "smoke": round(smoke_score, 1),
                     "brightness": round(brightness_score, 1),
                     "texture": round(texture_score, 1),
+                    "heuristic": round(heuristic_score, 1),
+                    "model_ensemble": round(model_prediction.get("confidence", 0), 1),
+                },
+                "models": {
+                    "status": self.model_engine.get_status(),
+                    "prediction": model_prediction,
                 },
                 "regions_of_interest": regions,
                 "recommendations": recommendations,
@@ -93,7 +134,7 @@ class ImageAnalyzer:
                     "height": img.height,
                     "thumbnail": f"data:image/jpeg;base64,{thumbnail_b64}",
                 },
-                "analysis_time": datetime.utcnow().isoformat(),
+                "analysis_time": datetime.now(UTC).isoformat(),
             }
 
         except Exception as e:
@@ -102,8 +143,27 @@ class ImageAnalyzer:
                 "confidence": 0,
                 "severity": "low",
                 "error": str(e),
-                "analysis_time": datetime.utcnow().isoformat(),
+                "scene_classification": "unknown",
+                "models": {
+                    "status": self.model_engine.get_status(),
+                },
+                "analysis_time": datetime.now(UTC).isoformat(),
             }
+
+    def _classify_scene_heuristic(self, fire_score, smoke_score, brightness_score):
+        """Heuristic fallback scene classifier for fire/sunlight/smoke/fog."""
+        # Fire: strong fire colors are enough — night fires have low brightness but extreme fire colors
+        if fire_score > 30:
+            return "fire"
+        if fire_score > 15 and smoke_score > 20:
+            return "fire"
+        if brightness_score > 65 and fire_score < 10 and smoke_score < 30:
+            return "sunlight"
+        if smoke_score > 55 and fire_score < 10:
+            return "fog"
+        if smoke_score > 35:
+            return "smoke"
+        return "normal"
 
     def _detect_fire_colors(self, img_array):
         """Detect fire-like colors (red, orange, yellow) in the image."""
@@ -111,13 +171,13 @@ class ImageAnalyzer:
         total_pixels = img_array.shape[0] * img_array.shape[1]
 
         # Red-dominant fire pixels
-        red_fire = (r > 180) & (g < 120) & (b < 80) & (r > g * 1.5)
-        # Orange fire pixels
-        orange_fire = (r > 200) & (g > 80) & (g < 180) & (b < 80) & (r > g)
+        red_fire = (r > 150) & (r > g) & (r > b) & ((r.astype(int) - g.astype(int)) > 30)
+        # Orange fire pixels (highly common in actual photos)
+        orange_fire = (r > 180) & (g > 100) & (b < r - 40)
         # Bright yellow fire pixels
-        yellow_fire = (r > 200) & (g > 170) & (b < 100) & (r > b * 2)
+        yellow_fire = (r > 200) & (g > 170) & (b < 150)
         # Intense white-hot fire
-        hot_fire = (r > 240) & (g > 200) & (b > 150) & (r > b)
+        hot_fire = (r > 230) & (g > 200) & (b > 180) & (r >= b)
 
         fire_pixels = np.sum(red_fire | orange_fire | yellow_fire | hot_fire)
         fire_ratio = fire_pixels / total_pixels

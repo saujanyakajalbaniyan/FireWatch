@@ -6,7 +6,7 @@ natural-language risk assessments for active fire data.
 
 import numpy as np
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, UTC
 
 
 # Region definitions for analysis
@@ -45,12 +45,12 @@ class AIAnalyzer:
             "clusters": clusters,
             "risk_assessments": risk_assessments,
             "alerts": alerts,
-            "analysis_time": datetime.utcnow().isoformat(),
+            "analysis_time": datetime.now(UTC).isoformat(),
             "total_fires_analyzed": len(fires),
         }
 
         self.cached_analysis = analysis
-        self.last_analysis_time = datetime.utcnow()
+        self.last_analysis_time = datetime.now(UTC)
         return analysis
 
     def _compute_analytics(self, fires):
@@ -285,7 +285,7 @@ class AIAnalyzer:
                                f"with total FRP of {cluster['total_frp']} MW.",
                     "latitude": cluster["center_lat"],
                     "longitude": cluster["center_lng"],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "cluster_id": cluster["id"],
                 })
 
@@ -316,6 +316,6 @@ class AIAnalyzer:
             "clusters": [],
             "risk_assessments": [],
             "alerts": [],
-            "analysis_time": datetime.utcnow().isoformat(),
+            "analysis_time": datetime.now(UTC).isoformat(),
             "total_fires_analyzed": 0,
         }

@@ -1,25 +1,9 @@
 import React from 'react';
 
-const severityColors = {
-  critical: 'var(--severity-critical)',
-  high: 'var(--severity-high)',
-  moderate: 'var(--severity-moderate)',
-  low: 'var(--severity-low)',
-};
-
 export default function StatsPanel({ analytics }) {
-  if (!analytics || !analytics.total_fires) {
+  if (!analytics) {
     return null;
   }
-
-  const { severity_distribution = {} } = analytics;
-  const maxSev = Math.max(
-    severity_distribution.critical || 0,
-    severity_distribution.high || 0,
-    severity_distribution.moderate || 0,
-    severity_distribution.low || 0,
-    1
-  );
 
   return (
     <div className="stats-overlay">

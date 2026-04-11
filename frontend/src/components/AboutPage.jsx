@@ -1,22 +1,24 @@
-import React, { useState, useEffect } from 'react';
-
-const API_BASE = 'http://localhost:5000/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { API_BASE } from '../config';
 
 export default function AboutPage() {
   const [status, setStatus] = useState(null);
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/status`);
       if (res.ok) setStatus(await res.json());
     } catch (err) {
       console.error('Status fetch failed:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchStatus();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchStatus]);
 
   return (
     <div className="about-page">
