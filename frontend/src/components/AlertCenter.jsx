@@ -1,25 +1,24 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../config';
+import {
+  MessageSquare, Smartphone, Send, RefreshCw, CheckCircle, XCircle,
+  AlertTriangle, Info, BellRing, ExternalLink,
+} from 'lucide-react';
 
 function StatusBadge({ enabled, configured }) {
-  const label = enabled ? 'Live' : configured ? 'Configured' : 'Not configured';
-  const className = enabled ? 'status-chip low' : configured ? 'status-chip moderate' : 'status-chip high';
-  return <span className={className}>{label}</span>;
+  if (enabled) return <span className="status-chip low"><CheckCircle size={12} /> Live</span>;
+  if (configured) return <span className="status-chip moderate"><AlertTriangle size={12} /> Configured</span>;
+  return <span className="status-chip high"><XCircle size={12} /> Not configured</span>;
 }
 
 export default function AlertCenter() {
   const [message, setMessage] = useState('');
+  const [msgType, setMsgType] = useState('info'); // 'info' | 'success' | 'error'
   const [loading, setLoading] = useState(true);
   const [sendingTest, setSendingTest] = useState(false);
+  const [sendingSmsTest, setSendingSmsTest] = useState(false);
+  const [savingSms, setSavingSms] = useState(false);
   const [channelStatus, setChannelStatus] = useState(null);
-
-  const [email, setEmail] = useState({
-    smtp_server: 'smtp.gmail.com',
-    smtp_port: 587,
-    sender_email: '',
-    sender_password: '',
-    recipient_email: '',
-  });
 
   const [sms, setSms] = useState({
     account_sid: '',
@@ -33,6 +32,13 @@ export default function AlertCenter() {
     api_key: '',
   });
 
+  const showMsg = (text, type = 'info') => {
+    setMessage(text);
+    setMsgType(type);
+    // Auto-clear after 10s
+    setTimeout(() => setMessage(''), 10000);
+  };
+
   const loadChannelStatus = useCallback(async () => {
     setLoading(true);
     try {
@@ -41,15 +47,6 @@ export default function AlertCenter() {
       const data = await res.json();
       setChannelStatus(data);
 
-      if (data.email?.config) {
-        setEmail((prev) => ({
-          ...prev,
-          smtp_server: data.email.config.smtp_server || prev.smtp_server,
-          smtp_port: data.email.config.smtp_port || prev.smtp_port,
-          sender_email: data.email.config.sender_email || prev.sender_email,
-          recipient_email: data.email.config.recipient_email || prev.recipient_email,
-        }));
-      }
       if (data.sms?.config) {
         setSms((prev) => ({
           ...prev,
@@ -67,7 +64,7 @@ export default function AlertCenter() {
       }
     } catch (err) {
       console.error('Failed to load alert status:', err);
-      setMessage('Unable to load alert channel status.');
+      showMsg('Unable to load alert channel status.', 'error');
     } finally {
       setLoading(false);
     }
@@ -77,22 +74,70 @@ export default function AlertCenter() {
     loadChannelStatus();
   }, [loadChannelStatus]);
 
-  const postConfig = async (path, body) => {
+  /* ─── Save SMS Config ─── */
+  const saveSmsConfig = async () => {
+    setSavingSms(true);
     try {
-      const res = await fetch(`${API_BASE}${path}`, {
+      const res = await fetch(`${API_BASE}/alerts/sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(sms),
       });
       const data = await res.json();
-      setMessage(`${path} -> ${data.status || data.error || 'updated'}`);
+      if (data.status === 'configured') {
+        showMsg(`SMS configured! Alerts will be sent to ${data.to_number}`, 'success');
+      } else {
+        showMsg(`SMS config incomplete — please fill all 4 fields.`, 'error');
+      }
       await loadChannelStatus();
     } catch (err) {
-      console.error('Channel update failed:', err);
-      setMessage(`${path} -> request failed`);
+      console.error('SMS save failed:', err);
+      showMsg('Failed to save SMS config.', 'error');
+    } finally {
+      setSavingSms(false);
     }
   };
 
+  /* ─── Save Mobile Config ─── */
+  const saveMobileConfig = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/alerts/mobile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mobile),
+      });
+      const data = await res.json();
+      showMsg(`Mobile config: ${data.status || 'updated'}`, data.status === 'configured' ? 'success' : 'info');
+      await loadChannelStatus();
+    } catch (err) {
+      console.error('Mobile config failed:', err);
+      showMsg('Failed to save mobile config.', 'error');
+    }
+  };
+
+  /* ─── Send Test SMS (direct, bypasses cooldown) ─── */
+  const sendTestSms = async () => {
+    setSendingSmsTest(true);
+    try {
+      const res = await fetch(`${API_BASE}/alerts/sms/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.status === 'sent') {
+        showMsg(`SMS sent successfully to ${data.to}! Check your phone.`, 'success');
+      } else {
+        showMsg(`SMS failed: ${data.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      console.error('Test SMS failed:', err);
+      showMsg('Test SMS request failed — is the backend running?', 'error');
+    } finally {
+      setSendingSmsTest(false);
+    }
+  };
+
+  /* ─── Send Full Test Alert (all channels) ─── */
   const sendTestAlert = async () => {
     setSendingTest(true);
     try {
@@ -101,20 +146,22 @@ export default function AlertCenter() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: 'Real-time alert channel test',
-          message: 'This is a real-time delivery test for email, SMS, and mobile channels.',
+          message: 'This is a real-time delivery test for SMS and mobile channels.',
         }),
       });
       const data = await res.json();
       const channels = data.alert?.dispatch?.channels;
       if (channels) {
-        const summary = Object.entries(channels).map(([key, value]) => `${key}: ${value.status}`).join(', ');
-        setMessage(`Test alert sent -> ${summary}`);
+        const summary = Object.entries(channels)
+          .map(([key, val]) => `${key}: ${val.status}${val.reason ? ` (${val.reason})` : ''}`)
+          .join(' | ');
+        showMsg(`Test alert dispatched — ${summary}`, 'success');
       } else {
-        setMessage('Test alert sent.');
+        showMsg('Test alert sent to dashboard.', 'info');
       }
     } catch (err) {
       console.error('Test alert failed:', err);
-      setMessage('Test alert failed.');
+      showMsg('Test alert failed — is the backend running?', 'error');
     } finally {
       setSendingTest(false);
     }
@@ -123,57 +170,136 @@ export default function AlertCenter() {
   return (
     <div className="alerts-config-page">
       <div className="page-header">
-        <h1 className="page-title">Alert Center</h1>
-        <p className="page-subtitle">Configure and test real-time email, SMS, and mobile alert delivery.</p>
+        <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', margin: 0 }}>
+          <BellRing size={28} style={{ marginRight: '8px' }} /> Alert Center
+        </h1>
+        <p className="page-subtitle">Configure and test real-time SMS and mobile alert delivery.</p>
       </div>
 
       <div className="alerts-config-grid">
+        {/* SMS Config Card */}
         <section className="config-card">
           <div className="config-card-head">
-            <h3>Email Alerts</h3>
-            <StatusBadge enabled={channelStatus?.email?.enabled} configured={channelStatus?.email?.configured} />
-          </div>
-          <input placeholder="SMTP server" value={email.smtp_server} onChange={(e) => setEmail((p) => ({ ...p, smtp_server: e.target.value }))} />
-          <input placeholder="SMTP port" type="number" value={email.smtp_port} onChange={(e) => setEmail((p) => ({ ...p, smtp_port: Number(e.target.value) }))} />
-          <input placeholder="Sender email" value={email.sender_email} onChange={(e) => setEmail((p) => ({ ...p, sender_email: e.target.value }))} />
-          <input placeholder="App password" type="password" value={email.sender_password} onChange={(e) => setEmail((p) => ({ ...p, sender_password: e.target.value }))} />
-          <input placeholder="Recipient email" value={email.recipient_email} onChange={(e) => setEmail((p) => ({ ...p, recipient_email: e.target.value }))} />
-          <button className="btn-analyze" onClick={() => postConfig('/alerts/email', email)}>Save Email Config</button>
-        </section>
-
-        <section className="config-card">
-          <div className="config-card-head">
-            <h3>SMS Alerts</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', margin: 0 }}><MessageSquare size={18} style={{ marginRight: '6px' }} /> SMS Alerts (Twilio)</h3>
             <StatusBadge enabled={channelStatus?.sms?.enabled} configured={channelStatus?.sms?.configured} />
           </div>
-          <input placeholder="Account SID" value={sms.account_sid} onChange={(e) => setSms((p) => ({ ...p, account_sid: e.target.value }))} />
-          <input placeholder="Auth Token" type="password" value={sms.auth_token} onChange={(e) => setSms((p) => ({ ...p, auth_token: e.target.value }))} />
-          <input placeholder="From Number" value={sms.from_number} onChange={(e) => setSms((p) => ({ ...p, from_number: e.target.value }))} />
-          <input placeholder="To Number" value={sms.to_number} onChange={(e) => setSms((p) => ({ ...p, to_number: e.target.value }))} />
-          <button className="btn-analyze" onClick={() => postConfig('/alerts/sms', sms)}>Save SMS Config</button>
+          <input
+            placeholder="Account SID (e.g. ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)"
+            value={sms.account_sid}
+            onChange={(e) => setSms((p) => ({ ...p, account_sid: e.target.value }))}
+          />
+          <input
+            placeholder="Auth Token"
+            type="password"
+            value={sms.auth_token}
+            onChange={(e) => setSms((p) => ({ ...p, auth_token: e.target.value }))}
+          />
+          <input
+            placeholder="From Number (e.g. +1234567890)"
+            value={sms.from_number}
+            onChange={(e) => setSms((p) => ({ ...p, from_number: e.target.value }))}
+          />
+          <input
+            placeholder="To Number — your phone (e.g. +919876543210)"
+            value={sms.to_number}
+            onChange={(e) => setSms((p) => ({ ...p, to_number: e.target.value }))}
+            style={{ borderColor: sms.to_number ? 'var(--severity-low)' : undefined }}
+          />
+          <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+            <button className="btn-analyze" onClick={saveSmsConfig} disabled={savingSms}>
+              {savingSms ? 'Saving...' : 'Save SMS Config'}
+            </button>
+            <button
+              className="btn-analyze"
+              onClick={sendTestSms}
+              disabled={sendingSmsTest || !channelStatus?.sms?.enabled}
+              style={{ background: channelStatus?.sms?.enabled ? 'var(--severity-low)' : undefined }}
+            >
+              <Send size={14} style={{ marginRight: '4px' }} />
+              {sendingSmsTest ? 'Sending...' : 'Send Test SMS'}
+            </button>
+          </div>
         </section>
 
+        {/* Mobile Push Card */}
         <section className="config-card">
           <div className="config-card-head">
-            <h3>Mobile Push</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', margin: 0 }}><Smartphone size={18} style={{ marginRight: '6px' }} /> Mobile Push</h3>
             <StatusBadge enabled={channelStatus?.mobile?.enabled} configured={channelStatus?.mobile?.configured} />
           </div>
-          <input placeholder="Webhook URL" value={mobile.webhook_url} onChange={(e) => setMobile((p) => ({ ...p, webhook_url: e.target.value }))} />
-          <input placeholder="API key (optional)" value={mobile.api_key} onChange={(e) => setMobile((p) => ({ ...p, api_key: e.target.value }))} />
-          <button className="btn-analyze" onClick={() => postConfig('/alerts/mobile', mobile)}>Save Mobile Config</button>
+          <input
+            placeholder="Webhook URL"
+            value={mobile.webhook_url}
+            onChange={(e) => setMobile((p) => ({ ...p, webhook_url: e.target.value }))}
+          />
+          <input
+            placeholder="API key (optional)"
+            value={mobile.api_key}
+            onChange={(e) => setMobile((p) => ({ ...p, api_key: e.target.value }))}
+          />
+
+          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', lineHeight: '1.5', flex: 1 }}>
+            <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>How to use this feature:</strong>
+            Connect your custom apps, <strong>Slack</strong>, <strong>Discord</strong>, or <strong>Zapier</strong>. We will send an instant JSON payload with the fire's coordinates and severity rating directly to this webhook when detected.
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+            <button className="btn-analyze" onClick={saveMobileConfig}>Save Mobile Config</button>
+          </div>
+        </section>
+
+        {/* Dispatch Rules Card (Fills 3rd Column) */}
+        <section className="config-card">
+          <div className="config-card-head">
+            <h3 style={{ display: 'flex', alignItems: 'center', margin: 0 }}><Info size={18} style={{ marginRight: '6px' }} /> Dispatch Rules & Info</h3>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.5', marginTop: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <CheckCircle size={14} style={{ color: 'var(--severity-low)', marginTop: '3px', flexShrink: 0 }} />
+              <span><strong>Severity Filter:</strong> Alerts are only dispatched for <strong>High</strong> or <strong>Critical</strong> severity fire detections. Minor anomalies are logged but do not trigger SMS.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <AlertTriangle size={14} style={{ color: 'var(--fire-orange)', marginTop: '3px', flexShrink: 0 }} />
+              <span><strong>Global Cooldown:</strong> To conserve your Twilio quota and prevent spam, SMS alerts have a <strong>30-minute global cooldown</strong> after a successful dispatch.</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <Smartphone size={14} style={{ color: 'var(--text-primary)', marginTop: '3px', flexShrink: 0 }} />
+              <span><strong>Bypassing Cooldown:</strong> Webhook / Mobile Push notifications send instantly upon detection and completely bypass the SMS cooldown limitation.</span>
+            </div>
+          </div>
         </section>
       </div>
 
+      {/* Global Test */}
       <div className="config-toolbar">
         <button className="btn-analyze" onClick={sendTestAlert} disabled={sendingTest || loading}>
-          {sendingTest ? 'Sending test...' : 'Send Real-Time Test Alert'}
+          {sendingTest ? 'Sending test...' : 'Send Full Channel Test'}
         </button>
         <button className="btn-reset" onClick={loadChannelStatus} disabled={loading}>
+          <RefreshCw size={14} style={{ marginRight: '4px' }} />
           {loading ? 'Refreshing...' : 'Refresh Status'}
         </button>
       </div>
 
-      {message && <p className="config-message">{message}</p>}
+      {/* Status Message */}
+      {message && (
+        <p className={`config-message ${msgType}`} style={{
+          padding: '12px 16px',
+          borderRadius: '8px',
+          marginTop: '16px',
+          background: msgType === 'success' ? 'rgba(34,197,94,0.15)' :
+                      msgType === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
+          borderLeft: `3px solid ${
+            msgType === 'success' ? 'var(--severity-low)' :
+            msgType === 'error' ? 'var(--severity-critical)' : 'var(--fire-orange)'
+          }`,
+          color: 'var(--text-primary)',
+        }}>
+          {msgType === 'success' && <CheckCircle size={14} style={{ display: 'inline', marginRight: '6px' }} />}
+          {msgType === 'error' && <XCircle size={14} style={{ display: 'inline', marginRight: '6px' }} />}
+          {msgType === 'info' && <Info size={14} style={{ display: 'inline', marginRight: '6px' }} />}
+          {message}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Camera, UploadCloud, Folder, Search, Flame, CheckCircle, Maximize, Clock, AlertTriangle, Radio } from 'lucide-react';
 import { API_BASE } from '../config';
 
 export default function ImageUpload({ socket }) {
@@ -90,7 +91,7 @@ export default function ImageUpload({ socket }) {
   return (
     <div className="upload-page">
       <div className="page-header">
-        <h1 className="page-title">📸 Live Footage Analysis</h1>
+        <h1 className="page-title"><Camera size={28} style={{marginRight: '8px'}} /> Live Footage Analysis</h1>
         <p className="page-subtitle">Real-time manual upload and automated background drone/satellite feed monitor</p>
       </div>
 
@@ -105,7 +106,7 @@ export default function ImageUpload({ socket }) {
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
             >
-              <div className="dropzone-icon">📤</div>
+              <div className="dropzone-icon"><UploadCloud size={48} /></div>
               <h3>Drop image here or click to browse</h3>
               <p>Supports JPG, PNG, WebP — Max 10MB</p>
               <input
@@ -120,7 +121,7 @@ export default function ImageUpload({ socket }) {
             <div className="upload-preview-area">
               <img src={preview} alt="Preview" className="upload-preview-img" />
               <div className="upload-file-info">
-                <span>📁 {selectedFile?.name}</span>
+                <span><Folder size={16} style={{display:'inline', marginRight:'4px'}} /> {selectedFile?.name}</span>
                 <span>{(selectedFile?.size / 1024).toFixed(1)} KB</span>
               </div>
               <div className="upload-actions">
@@ -131,7 +132,7 @@ export default function ImageUpload({ socket }) {
                       Analyzing...
                     </>
                   ) : (
-                    '🔍 Analyze for Fire'
+                    <><Search size={16} style={{display:'inline', marginRight:'4px'}} /> Analyze for Fire</>
                   )}
                 </button>
                 <button className="btn-reset" onClick={resetUpload}>Clear</button>
@@ -155,7 +156,7 @@ export default function ImageUpload({ socket }) {
               {/* Detection Badge */}
               <div className={`detection-badge ${result.fire_detected ? result.severity : 'safe'}`}>
                 <div className="detection-icon">
-                  {result.fire_detected ? '🔥' : '✅'}
+                  {result.fire_detected ? <Flame size={24} /> : <CheckCircle size={24} />}
                 </div>
                 <div>
                   <h2>{result.fire_detected ? 'Fire Detected' : 'No Fire Detected'}</h2>
@@ -205,22 +206,22 @@ export default function ImageUpload({ socket }) {
 
               {/* Image Info */}
               <div className="image-meta">
-                <span>📐 {result.image_info?.width} × {result.image_info?.height}px</span>
-                <span>⏱️ {new Date(result.analysis_time).toLocaleString()}</span>
+                <span><Maximize size={16} style={{display:'inline', marginRight:'4px'}} /> {result.image_info?.width} × {result.image_info?.height}px</span>
+                <span><Clock size={16} style={{display:'inline', marginRight:'4px'}} /> {new Date(result.analysis_time).toLocaleString()}</span>
               </div>
             </div>
           )}
 
           {result?.error && (
             <div className="analysis-error">
-              <div className="empty-state-icon">⚠️</div>
+              <div className="empty-state-icon"><AlertTriangle size={32} /></div>
               <p>{result.error}</p>
             </div>
           )}
 
           {!result && !isAnalyzing && (
             <div className="analysis-placeholder">
-              <div className="empty-state-icon">📡</div>
+              <div className="empty-state-icon"><Radio size={32} /></div>
               <h3>Waiting for live feed...</h3>
               <p>The AI auto-scanner will stream a new image here momentarily, or you can manually upload one.</p>
             </div>

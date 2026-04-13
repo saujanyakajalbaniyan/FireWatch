@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BarChart2, Flame, Globe, Sun, Zap, Target, AlertCircle, Brain, Thermometer } from 'lucide-react';
 import { API_BASE } from '../config';
 
 
@@ -142,7 +143,7 @@ export default function DataVisualization() {
     return (
       <div className="viz-page">
         <div className="empty-state">
-          <div className="empty-state-icon">📊</div>
+          <div className="empty-state-icon"><BarChart2 size={32} /></div>
           <p>No data available for visualization.</p>
         </div>
       </div>
@@ -152,7 +153,7 @@ export default function DataVisualization() {
   return (
     <div className="viz-page">
       <div className="page-header">
-        <h1 className="page-title">📊 Data Visualization</h1>
+        <h1 className="page-title"><BarChart2 size={28} style={{marginRight: '8px'}} /> Data Visualization</h1>
         <p className="page-subtitle">
           Visual analytics for {vizData.total_fires} active fires
         </p>
@@ -161,23 +162,23 @@ export default function DataVisualization() {
       <div className="viz-grid">
         <BarChart
           data={vizData.severity_distribution}
-          title="🔥 Severity Distribution"
+          title={<><Flame size={16} style={{display:'inline', marginRight:'4px'}} /> Severity Distribution</>}
           colorMap={COLORS}
         />
 
         <BarChart
           data={vizData.regional_distribution}
-          title="🌍 Fires by Region"
+          title={<><Globe size={16} style={{display:'inline', marginRight:'4px'}} /> Fires by Region</>}
         />
 
         <DonutChart
           data={vizData.day_night}
-          title="☀️ Day vs Night Detections"
+          title={<><Sun size={16} style={{display:'inline', marginRight:'4px'}} /> Day vs Night Detections</>}
         />
 
         <BarChart
           data={vizData.frp_distribution}
-          title="⚡ Fire Radiative Power (MW)"
+          title={<><Zap size={16} style={{display:'inline', marginRight:'4px'}} /> Fire Radiative Power (MW)</>}
           colorMap={{
             '0-10': '#22c55e',
             '10-25': '#f59e0b',
@@ -189,7 +190,7 @@ export default function DataVisualization() {
 
         <BarChart
           data={vizData.confidence_distribution}
-          title="🎯 Detection Confidence"
+          title={<><Target size={16} style={{display:'inline', marginRight:'4px'}} /> Detection Confidence</>}
           colorMap={{
             '0-25': '#ef4444',
             '25-50': '#f97316',
@@ -200,17 +201,17 @@ export default function DataVisualization() {
 
         <DonutChart
           data={vizData.severity_distribution}
-          title="🔴 Severity Breakdown"
+          title={<><AlertCircle size={16} style={{display:'inline', marginRight:'4px'}} /> Severity Breakdown</>}
         />
 
         <DonutChart
           data={vizData.scene_distribution || { unknown: 0 }}
-          title="🧠 Scene Classification (Fire vs Sunlight / Smoke vs Fog)"
+          title={<><Brain size={16} style={{display:'inline', marginRight:'4px'}} /> Scene Classification (Fire vs Sunlight / Smoke vs Fog)</>}
         />
 
         <TrendChart
           points={vizData.sensor_time_series || []}
-          title="🌡 Temperature vs Time"
+          title={<><Thermometer size={16} style={{display:'inline', marginRight:'4px'}} /> Temperature vs Time</>}
         />
       </div>
     </div>

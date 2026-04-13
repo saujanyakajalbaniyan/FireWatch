@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import { AlertTriangle, Activity } from 'lucide-react';
 import Header from './components/Header';
 import FireMap from './components/FireMap';
 import StatsPanel from './components/StatsPanel';
@@ -12,6 +13,8 @@ import RegionSelector from './components/RegionSelector';
 import DataVisualization from './components/DataVisualization';
 import NotificationToast from './components/NotificationToast';
 import AboutPage from './components/AboutPage';
+import LiveCameraFeed from './components/LiveCameraFeed';
+import SensorMonitor from './components/SensorMonitor';
 
 import AlertCenter from './components/AlertCenter';
 import VoiceAssistant from './components/VoiceAssistant';
@@ -76,13 +79,13 @@ function Dashboard({ fires, analytics, alerts, riskAssessments, clusters }) {
             className={`sidebar-tab ${activeTab === 'alerts' ? 'active' : ''}`}
             onClick={() => setActiveTab('alerts')}
           >
-            ⚠️ Alerts {alerts.length > 0 && `(${alerts.length})`}
+            <AlertTriangle size={18} /> Alerts {alerts.length > 0 && `(${alerts.length})`}
           </button>
           <button
             className={`sidebar-tab ${activeTab === 'risk' ? 'active' : ''}`}
             onClick={() => setActiveTab('risk')}
           >
-            🧠 AI Risk
+            <Activity size={18} /> AI Risk
           </button>
         </div>
 
@@ -160,13 +163,13 @@ function DashboardShell({ fires, analytics, alerts, riskAssessments, clusters, s
               className={`sidebar-tab ${activeTab === 'alerts' ? 'active' : ''}`}
               onClick={() => setActiveTab('alerts')}
             >
-              Alerts {alerts.length > 0 && `(${alerts.length})`}
+              <AlertTriangle size={18} /> Alerts {alerts.length > 0 && `(${alerts.length})`}
             </button>
             <button
               className={`sidebar-tab ${activeTab === 'risk' ? 'active' : ''}`}
               onClick={() => setActiveTab('risk')}
             >
-              AI Risk
+              <Activity size={18} /> AI Risk
             </button>
           </div>
 
@@ -441,6 +444,8 @@ function App() {
           <Route path="/history" element={<FullPageWrapper><FireHistory fires={fires} /></FullPageWrapper>} />
           <Route path="/regions" element={<FullPageWrapper><RegionSelector fires={fires} /></FullPageWrapper>} />
           <Route path="/visualizations" element={<FullPageWrapper><DataVisualization /></FullPageWrapper>} />
+          <Route path="/live-feed" element={<FullPageWrapper><LiveCameraFeed /></FullPageWrapper>} />
+          <Route path="/sensors" element={<FullPageWrapper><SensorMonitor /></FullPageWrapper>} />
 
           <Route path="/alert-center" element={<FullPageWrapper><AlertCenter /></FullPageWrapper>} />
           <Route path="/about" element={<FullPageWrapper><AboutPage /></FullPageWrapper>} />

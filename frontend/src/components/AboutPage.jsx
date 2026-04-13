@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Info, Flame, Zap, CheckCircle, Clock, RefreshCw, Satellite, Wrench, Code, Layout, Map, Brain, Image, Radio, Sparkles, Camera, Bell, BarChart2, ClipboardList, BookOpen, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../config';
 
 export default function AboutPage() {
@@ -23,14 +24,14 @@ export default function AboutPage() {
   return (
     <div className="about-page">
       <div className="page-header">
-        <h1 className="page-title">ℹ️ About FireWatch AI</h1>
+        <h1 className="page-title"><Info size={28} style={{marginRight: '8px'}} /> About FireWatch AI</h1>
         <p className="page-subtitle">AI-Driven Forest Fire Detection System</p>
       </div>
 
       <div className="about-grid">
         {/* System Overview */}
         <div className="about-card hero-card">
-          <div className="about-hero-icon">🔥</div>
+          <div className="about-hero-icon"><Flame size={48} /></div>
           <h2>FireWatch AI</h2>
           <p>
             An advanced forest fire detection and monitoring platform that leverages
@@ -41,7 +42,7 @@ export default function AboutPage() {
 
         {/* System Status */}
         <div className="about-card">
-          <h3>⚡ System Status</h3>
+          <h3><Zap size={20} style={{marginRight: '8px', display: 'inline'}} /> System Status</h3>
           {status ? (
             <div className="status-grid">
               <div className="status-item">
@@ -63,13 +64,13 @@ export default function AboutPage() {
               <div className="status-item">
                 <span className="status-label">Analysis</span>
                 <span className="status-val">
-                  {status.analysis_available ? '✅ Available' : '⏳ Pending'}
+                  {status.analysis_available ? <><CheckCircle size={14} style={{display:'inline'}} /> Available</> : <><Clock size={14} style={{display:'inline'}} /> Pending</>}
                 </span>
               </div>
               <div className="status-item">
                 <span className="status-label">Fetching</span>
                 <span className="status-val">
-                  {status.is_fetching ? '🔄 In progress' : '✅ Idle'}
+                  {status.is_fetching ? <><RefreshCw size={14} style={{display:'inline'}} /> In progress</> : <><CheckCircle size={14} style={{display:'inline'}} /> Idle</>}
                 </span>
               </div>
             </div>
@@ -80,7 +81,7 @@ export default function AboutPage() {
 
         {/* Data Sources */}
         <div className="about-card">
-          <h3>🛰️ Data Sources</h3>
+          <h3><Satellite size={20} style={{marginRight: '8px', display: 'inline'}} /> Data Sources</h3>
           <div className="about-list">
             <div className="about-list-item">
               <strong>NASA FIRMS</strong>
@@ -99,30 +100,30 @@ export default function AboutPage() {
 
         {/* Tech Stack */}
         <div className="about-card">
-          <h3>🛠️ Technology Stack</h3>
+          <h3><Wrench size={20} style={{marginRight: '8px', display: 'inline'}} /> Technology Stack</h3>
           <div className="tech-grid">
             <div className="tech-item">
-              <span className="tech-icon">⚛️</span>
+              <span className="tech-icon"><Layout size={20} /></span>
               <span>React + Vite</span>
             </div>
             <div className="tech-item">
-              <span className="tech-icon">🐍</span>
+              <span className="tech-icon"><Code size={20} /></span>
               <span>Python Flask</span>
             </div>
             <div className="tech-item">
-              <span className="tech-icon">🗺️</span>
+              <span className="tech-icon"><Map size={20} /></span>
               <span>Leaflet Maps</span>
             </div>
             <div className="tech-item">
-              <span className="tech-icon">🧠</span>
+              <span className="tech-icon"><Brain size={20} /></span>
               <span>NumPy + Scikit-learn</span>
             </div>
             <div className="tech-item">
-              <span className="tech-icon">🖼️</span>
+              <span className="tech-icon"><Image size={20} /></span>
               <span>Pillow (Image AI)</span>
             </div>
             <div className="tech-item">
-              <span className="tech-icon">📡</span>
+              <span className="tech-icon"><Radio size={20} /></span>
               <span>WebSocket</span>
             </div>
           </div>
@@ -130,30 +131,30 @@ export default function AboutPage() {
 
         {/* Features */}
         <div className="about-card">
-          <h3>✨ Key Features</h3>
+          <h3><Sparkles size={20} style={{marginRight: '8px', display: 'inline'}} /> Key Features</h3>
           <div className="about-list">
             <div className="about-list-item">
-              <strong>🗺️ Live Fire Map</strong>
+              <strong><Map size={16} style={{display:'inline', marginRight: '4px'}} /> Live Fire Map</strong>
               <p>Interactive world map with color-coded fire markers showing severity, confidence, and FRP.</p>
             </div>
             <div className="about-list-item">
-              <strong>📸 Image Analysis</strong>
+              <strong><Camera size={16} style={{display:'inline', marginRight: '4px'}} /> Image Analysis</strong>
               <p>Upload images for AI-powered fire and smoke detection using color histograms and texture analysis.</p>
             </div>
             <div className="about-list-item">
-              <strong>🔔 Alert System</strong>
+              <strong><Bell size={16} style={{display:'inline', marginRight: '4px'}} /> Alert System</strong>
               <p>Real-time dashboard, email, and push notifications when critical fires are detected.</p>
             </div>
             <div className="about-list-item">
-              <strong>📊 Data Visualization</strong>
+              <strong><BarChart2 size={16} style={{display:'inline', marginRight: '4px'}} /> Data Visualization</strong>
               <p>Interactive charts showing severity distribution, regional density, FRP analysis, and trends.</p>
             </div>
             <div className="about-list-item">
-              <strong>🧠 AI Risk Analysis</strong>
+              <strong><Brain size={16} style={{display:'inline', marginRight: '4px'}} /> AI Risk Analysis</strong>
               <p>Machine learning-powered regional risk assessments with natural-language summaries.</p>
             </div>
             <div className="about-list-item">
-              <strong>📋 Fire History</strong>
+              <strong><ClipboardList size={16} style={{display:'inline', marginRight: '4px'}} /> Fire History</strong>
               <p>Complete log of all fire detections and alerts with filtering and search capabilities.</p>
             </div>
           </div>
@@ -161,7 +162,7 @@ export default function AboutPage() {
 
         {/* Metrics Glossary */}
         <div className="about-card">
-          <h3>📖 Metrics Glossary</h3>
+          <h3><BookOpen size={20} style={{marginRight: '8px', display: 'inline'}} /> Metrics Glossary</h3>
           <div className="about-list">
             <div className="about-list-item">
               <strong>FRP (Fire Radiative Power)</strong>
@@ -177,7 +178,7 @@ export default function AboutPage() {
             </div>
             <div className="about-list-item">
               <strong>Severity Levels</strong>
-              <p>Critical (🔴), High (🟠), Moderate (🟡), Low (🟢) — based on combined FRP, confidence, and brightness scores.</p>
+              <p>Critical (<AlertCircle size={12} color='red' style={{display:'inline'}}/>), High (<AlertCircle size={12} color='orange' style={{display:'inline'}}/>), Moderate (<AlertCircle size={12} color='yellow' style={{display:'inline'}}/>), Low (<AlertCircle size={12} color='green' style={{display:'inline'}}/>) — based on combined FRP, confidence, and brightness scores.</p>
             </div>
           </div>
         </div>

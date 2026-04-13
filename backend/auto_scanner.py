@@ -45,10 +45,11 @@ class AutoScanner:
             import json
             
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            jpg_files = sorted([f for f in os.listdir(project_root) if f.lower().endswith(".jpg")])
+            valid_exts = (".jpg", ".jpeg", ".webp", ".png", ".avif", ".avg")
+            jpg_files = sorted([f for f in os.listdir(project_root) if f.lower().endswith(valid_exts)])
             
             if not jpg_files:
-                print("[AutoScanner] No .jpg files found in the project root.", flush=True)
+                print(f"[AutoScanner] No valid image files {valid_exts} found in the project root.", flush=True)
                 return
                 
             self.scan_index = (self.scan_index + 1) % len(jpg_files)
@@ -77,7 +78,7 @@ class AutoScanner:
 
             # 4. If fire is detected, alert!
             if analysis["fire_detected"]:
-                print(f"[AutoScanner] 🚨 FIRE DETECTED in random image! Conf: {analysis['confidence']}%, Sev: {analysis['severity']}")
+                print(f"[AutoScanner] [ALERT] FIRE DETECTED in random image! Conf: {analysis['confidence']}%, Sev: {analysis['severity']}")
                 
                 if analysis["severity"] in ["critical", "high"]:
                     alert = {

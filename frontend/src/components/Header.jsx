@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { Flame, Map, Camera, History, Globe, BarChart2, BellRing, Info, Video, Activity } from 'lucide-react';
 
 export default function Header({ lastUpdated, isFetching, totalFires, socketStatus, onRefresh, voiceEnabled, onToggleVoice, onTestVoice }) {
   const syncLabel = {
@@ -12,7 +13,7 @@ export default function Header({ lastUpdated, isFetching, totalFires, socketStat
   return (
     <header className="header">
       <div className="header-brand">
-        <div className="header-logo">🔥</div>
+        <div className="header-logo"><Flame size={24} /></div>
         <div>
           <div className="header-title">FireWatch AI</div>
           <div className="header-subtitle">NASA Satellite Fire Detection</div>
@@ -21,26 +22,32 @@ export default function Header({ lastUpdated, isFetching, totalFires, socketStat
 
       <nav className="header-nav">
         <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>
-          🗺️ Dashboard
+          <Map size={18} /> Dashboard
         </NavLink>
         <NavLink to="/upload" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          📸 Footage Analysis
+          <Camera size={18} /> Footage Analysis
+        </NavLink>
+        <NavLink to="/live-feed" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Video size={18} /> Live Camera
+        </NavLink>
+        <NavLink to="/sensors" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Activity size={18} /> Sensors
         </NavLink>
         <NavLink to="/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          📋 History
+          <History size={18} /> History
         </NavLink>
         <NavLink to="/regions" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          🌍 Regions
+          <Globe size={18} /> Regions
         </NavLink>
         <NavLink to="/visualizations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          📊 Charts
+          <BarChart2 size={18} /> Charts
         </NavLink>
 
         <NavLink to="/alert-center" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          📲 Alert Center
+          <BellRing size={18} /> Alert Center
         </NavLink>
         <NavLink to="/about" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          ℹ️ About
+          <Info size={18} /> About
         </NavLink>
       </nav>
 

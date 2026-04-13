@@ -248,7 +248,7 @@ class AIAnalyzer:
             text += "Detection confidence is moderate. "
 
         if risk_level in ("critical", "high"):
-            text += "⚠️ Immediate monitoring recommended."
+            text += "[WARNING] Immediate monitoring recommended."
         elif risk_level == "moderate":
             text += "Continued observation advised."
 
@@ -264,7 +264,7 @@ class AIAnalyzer:
                 alerts.append({
                     "type": "critical_fire",
                     "level": "critical",
-                    "title": "🔴 Critical Fire Detected",
+                    "title": "[CRITICAL] Critical Fire Detected",
                     "message": f"High-intensity fire at ({fire['latitude']:.3f}, {fire['longitude']:.3f}) "
                                f"with FRP {fire['frp']} MW and {fire['confidence']}% confidence.",
                     "latitude": fire["latitude"],
@@ -279,7 +279,7 @@ class AIAnalyzer:
                 alerts.append({
                     "type": "fire_cluster",
                     "level": cluster["severity"],
-                    "title": f"{'🔴' if cluster['severity'] == 'critical' else '🟠'} Large Fire Cluster — {cluster['region']}",
+                    "title": f"[{cluster['severity'].upper()}] Large Fire Cluster — {cluster['region']}",
                     "message": f"Cluster of {cluster['fire_count']} fires detected near "
                                f"({cluster['center_lat']:.2f}, {cluster['center_lng']:.2f}) "
                                f"with total FRP of {cluster['total_frp']} MW.",

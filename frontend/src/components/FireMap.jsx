@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { AlertCircle } from 'lucide-react';
 import { GoogleMap, MarkerF, useJsApiLoader } from '@react-google-maps/api';
 import 'leaflet/dist/leaflet.css';
 
@@ -138,11 +139,9 @@ export default function FireMap({ fires }) {
           >
             {viewMode === 'markers' && <Popup>
               <div>
-                <div className="popup-title">
-                  {fire.severity === 'critical' ? '🔴' :
-                   fire.severity === 'high' ? '🟠' :
-                   fire.severity === 'moderate' ? '🟡' : '🟢'}
-                  {' '}Fire Detection
+                <div className="popup-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={16} color={severityColors[fire.severity]} />
+                  Fire Detection
                 </div>
                 <div className="popup-row">
                   <span className="popup-label">Location</span>

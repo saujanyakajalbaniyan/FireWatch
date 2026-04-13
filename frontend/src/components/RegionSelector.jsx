@@ -1,14 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Globe, MapPin, MousePointerClick } from 'lucide-react';
 import { API_BASE } from '../config';
 
-const regionEmoji = {
-  'North America': '🇺🇸',
-  'South America': '🇧🇷',
-  'Europe': '🇪🇺',
-  'Africa': '🌍',
-  'Asia': '🌏',
-  'Australia': '🇦🇺',
-};
+const regionIcon = <MapPin size={20} style={{display:'inline', marginRight:'4px'}} />;
 
 const severityColor = {
   critical: 'var(--severity-critical)',
@@ -54,7 +48,7 @@ export default function RegionSelector({ fires }) {
   return (
     <div className="regions-page">
       <div className="page-header">
-        <h1 className="page-title">🌍 Region Selection</h1>
+        <h1 className="page-title"><Globe size={28} style={{marginRight: '8px'}} /> Region Selection</h1>
         <p className="page-subtitle">Select a region to view fire activity and detailed analysis</p>
       </div>
 
@@ -68,7 +62,7 @@ export default function RegionSelector({ fires }) {
               onClick={() => selectRegion(region)}
             >
               <div className="region-card-header">
-                <span className="region-emoji">{regionEmoji[region.name] || '🌐'}</span>
+                <span className="region-emoji">{regionIcon}</span>
                 <h3>{region.name}</h3>
               </div>
 
@@ -115,7 +109,7 @@ export default function RegionSelector({ fires }) {
         {/* Selected Region Detail */}
         {selectedRegion && (
           <div className="region-detail-panel">
-            <h2>{regionEmoji[selectedRegion.name]} {selectedRegion.name}</h2>
+            <h2>{regionIcon} {selectedRegion.name}</h2>
             <p className="region-fires-summary">
               {regionFires.length} fires detected in this region
             </p>
@@ -168,7 +162,7 @@ export default function RegionSelector({ fires }) {
         {!selectedRegion && (
           <div className="region-detail-panel placeholder">
             <div className="empty-state">
-              <div className="empty-state-icon">👆</div>
+              <div className="empty-state-icon"><MousePointerClick size={32} /></div>
               <h3>Select a Region</h3>
               <p>Click on a region card to view detailed fire analysis</p>
             </div>

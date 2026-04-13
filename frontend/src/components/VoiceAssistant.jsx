@@ -23,7 +23,11 @@ function buildVoiceMessage(alert) {
   const sector = extractSector(alert.title) || extractSector(alert.message);
   const place = sector || 'the monitored region';
   const level = (alert.level || 'high').toUpperCase();
-  const type = alert.scene_classification || alert.type || 'fire';
+  let type = alert.scene_classification || alert.type || 'fire';
+  if (type === 'image_analysis' || type === 'live_camera' || type === 'auto_scan' || type === 'test_alert') {
+    type = 'Fire';
+  }
+  
   return `${type} detected in ${place}. Alert level ${level}. Please take action.`;
 }
 
@@ -157,6 +161,17 @@ export default function VoiceAssistant({ enabled, notifications, alerts, onUnsup
       return () => synth.removeEventListener('voiceschanged', onReady);
     }
   }, [onUnsupported, processQueue]);
+
+  // ── Handle disable/enable toggle ────────────────────────────
+  useEffect(() => {
+    if (!enabled) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      pendingQueueRef.current = [];
+      isSpeakingRef.current = false;
+    }
+  }, [enabled]);
 
   // ── React to new notifications / alerts ───────────────────
   useEffect(() => {

@@ -1,10 +1,11 @@
 import React from 'react';
+import { Search, Flame } from 'lucide-react';
 
 export default function RiskAnalysis({ riskAssessments, clusters }) {
   if (!riskAssessments || riskAssessments.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">🔍</div>
+        <div className="empty-state-icon"><Search size={32} /></div>
         <p>Waiting for AI risk analysis...</p>
       </div>
     );
@@ -16,7 +17,7 @@ export default function RiskAnalysis({ riskAssessments, clusters }) {
       {clusters && clusters.length > 0 && (
         <div className="alert-card" style={{ borderLeft: '3px solid var(--fire-orange)' }}>
           <div className="alert-header">
-            <span className="alert-title">🔥 Fire Clusters Detected</span>
+            <span className="alert-title"><Flame size={16} style={{marginRight: '6px'}} /> Fire Clusters Detected</span>
             <span className="alert-badge high">{clusters.length} clusters</span>
           </div>
           <p className="alert-message">

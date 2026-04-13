@@ -70,23 +70,18 @@ fetch_lock = threading.Lock()
 
 def _bootstrap_alert_channels():
     """Load alert channels from environment for real-time delivery on startup."""
-    alert_manager.configure_email(
-        smtp_server=os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com"),
-        smtp_port=os.getenv("EMAIL_SMTP_PORT", 587),
-        sender_email=os.getenv("EMAIL_SENDER", ""),
-        sender_password=os.getenv("EMAIL_PASSWORD", ""),
-        recipient_email=os.getenv("EMAIL_RECIPIENT", ""),
-    )
-    alert_manager.configure_twilio(
+    twilio_result = alert_manager.configure_twilio(
         account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
         auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
         from_number=os.getenv("TWILIO_FROM_NUMBER", ""),
         to_number=os.getenv("TWILIO_TO_NUMBER", ""),
     )
-    alert_manager.configure_mobile(
+    mobile_result = alert_manager.configure_mobile(
         webhook_url=os.getenv("MOBILE_WEBHOOK_URL", ""),
         api_key=os.getenv("MOBILE_WEBHOOK_API_KEY", ""),
     )
+    print(f"[Startup] SMS channel: {twilio_result.get('status', 'unknown')}")
+    print(f"[Startup] Mobile channel: {mobile_result.get('status', 'unknown')}")
 
 
 _bootstrap_alert_channels()
@@ -384,7 +379,7 @@ def upload_image():
         alert_entry = _create_and_dispatch_alert({
             "type": "image_analysis",
             "level": result["severity"],
-            "title": f"📸 Fire Detected in Uploaded Image",
+            "title": f"[IMAGE] Fire Detected in Uploaded Image",
             "message": f"AI analysis detected fire with {result['confidence']}% confidence. "
                        f"Severity: {result['severity'].upper()}.",
             "latitude": None,
@@ -432,7 +427,7 @@ def analyze_live_frame():
         alert_entry = _create_and_dispatch_alert({
             "type": "live_camera",
             "level": result["severity"],
-            "title": "🎥 Live Camera Fire Detection",
+            "title": "[LIVE] Live Camera Fire Detection",
             "message": f"Fire detected in live feed with {result['confidence']}% confidence.",
             "latitude": latitude,
             "longitude": longitude,
@@ -483,7 +478,7 @@ def ingest_sensor_data():
         _create_and_dispatch_alert({
             "type": "sensor_threshold",
             "level": level,
-            "title": "🌡️ Sensor Threshold Alert",
+            "title": "[SENSOR] Sensor Threshold Alert",
             "message": f"Sensors report temp {temperature_c:.1f}C and smoke {smoke_ppm:.1f} ppm. Risk {risk_score:.1f}.",
             "latitude": location.get("latitude"),
             "longitude": location.get("longitude"),
@@ -607,55 +602,27 @@ def get_notifications():
     })
 
 
-# ─── NEW: Email Alert Configuration ──────────────────────────────────
-
-@app.route("/api/alerts/email", methods=["POST"])
-def configure_email():
-    """Configure email alert settings and save to .env."""
-    data = request.json or {}
-    if not data:
-        return jsonify({"error": "No configuration provided"}), 400
-
-    smtp_server = _cfg(data.get("smtp_server"), "EMAIL_SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = _cfg(data.get("smtp_port"), "EMAIL_SMTP_PORT", 587)
-    sender_email = _cfg(data.get("sender_email"), "EMAIL_SENDER", "")
-    sender_password = _cfg(data.get("sender_password"), "EMAIL_PASSWORD", "")
-    recipient_email = _cfg(data.get("recipient_email"), "EMAIL_RECIPIENT", "")
-
-    result = alert_manager.configure_email(
-        smtp_server=smtp_server,
-        smtp_port=smtp_port,
-        sender_email=sender_email,
-        sender_password=sender_password,
-        recipient_email=recipient_email,
-    )
-
-    # Persist to .env
-    _save_env("EMAIL_SMTP_SERVER", smtp_server)
-    _save_env("EMAIL_SMTP_PORT", smtp_port)
-    _save_env("EMAIL_SENDER", sender_email)
-    _save_env("EMAIL_PASSWORD", sender_password)
-    _save_env("EMAIL_RECIPIENT", recipient_email)
-
-    return jsonify(result)
-
-
-@app.route("/api/alerts/email", methods=["DELETE"])
-def disable_email():
-    """Disable email alerts."""
-    result = alert_manager.disable_email()
-    return jsonify(result)
-
-
 @app.route("/api/alerts/sms", methods=["POST"])
 def configure_sms():
-    """Configure Twilio SMS alerts and save to .env."""
-    data = request.json or {}
+    """Configure Twilio SMS alerts and save to .env.
     
-    account_sid = _cfg(data.get("account_sid"), "TWILIO_ACCOUNT_SID", "")
-    auth_token = _cfg(data.get("auth_token"), "TWILIO_AUTH_TOKEN", "")
-    from_number = _cfg(data.get("from_number"), "TWILIO_FROM_NUMBER", "")
-    to_number = _cfg(data.get("to_number"), "TWILIO_TO_NUMBER", "")
+    Handles partial updates: if a field contains a masked value (has '**')
+    the original .env value is preserved. This lets the user update just
+    the to_number without re-entering their auth_token.
+    """
+    data = request.json or {}
+
+    def _resolve(field_name, env_key):
+        """Use the submitted value unless it is masked or empty, then keep .env value."""
+        val = data.get(field_name, "")
+        if not val or "**" in str(val):
+            return os.getenv(env_key, "")
+        return val.strip()
+
+    account_sid = _resolve("account_sid", "TWILIO_ACCOUNT_SID")
+    auth_token = _resolve("auth_token", "TWILIO_AUTH_TOKEN")
+    from_number = _resolve("from_number", "TWILIO_FROM_NUMBER")
+    to_number = _resolve("to_number", "TWILIO_TO_NUMBER")
 
     result = alert_manager.configure_twilio(
         account_sid=account_sid,
@@ -669,6 +636,8 @@ def configure_sms():
     _save_env("TWILIO_AUTH_TOKEN", auth_token)
     _save_env("TWILIO_FROM_NUMBER", from_number)
     _save_env("TWILIO_TO_NUMBER", to_number)
+
+    print(f"[SMS Config] Updated — enabled: {alert_manager.twilio_enabled}, to: {to_number}")
 
     return jsonify(result)
 
@@ -731,6 +700,38 @@ def send_test_alert():
         "test_alert": True,
     })
     return jsonify({"status": "sent", "alert": alert})
+
+
+@app.route("/api/alerts/sms/test", methods=["POST"])
+def send_test_sms():
+    """Send a direct test SMS to verify Twilio configuration works.
+    
+    This bypasses the alert system and cooldown — it directly calls Twilio
+    to send a quick verification message so the user can confirm their
+    credentials and phone numbers are correct.
+    """
+    if not alert_manager.twilio_enabled:
+        return jsonify({
+            "status": "failed",
+            "error": "SMS is not configured. Please save your Twilio credentials first.",
+        }), 400
+
+    test_alert = {
+        "type": "test_alert",
+        "level": "high",
+        "title": "FireWatch AI — SMS Test",
+        "message": "Your SMS alert channel is working! Fire alerts will be sent to this number.",
+        "latitude": None,
+        "longitude": None,
+    }
+    result = alert_manager._send_sms_alert(test_alert)
+
+    return jsonify({
+        "status": result.get("status"),
+        "to": alert_manager.twilio_config.get("to_number", "N/A") if alert_manager.twilio_config else "N/A",
+        "sid": result.get("sid"),
+        "error": result.get("error"),
+    })
 
 
 @app.route("/api/cloud/status", methods=["GET"])
@@ -904,7 +905,7 @@ def handle_refresh():
 # ─── Startup ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("🔥 Forest Fire Detection System — Backend Starting...")
+    print("[STARTUP] Forest Fire Detection System — Backend Starting...")
     print("   API: http://localhost:5000/api/")
     print("   Endpoints: /fires, /analytics, /risk-analysis, /alerts, /status")
     print("   New: /upload-image, /history, /alert-history, /regions, /visualization-data")

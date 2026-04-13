@@ -374,11 +374,14 @@ body {
 }
 
 .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--text-secondary);
   text-decoration: none;
   transition: all var(--transition-fast);
   white-space: nowrap;
@@ -769,7 +772,7 @@ body {
 .sensor-layout,
 .alerts-config-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   padding: 0 40px 30px;
   max-width: 1400px;

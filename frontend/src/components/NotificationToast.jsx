@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 
 export default function NotificationToast({ notifications, onDismiss }) {
   return (
@@ -42,7 +43,7 @@ function Toast({ notification, onDismiss }) {
           <strong>{notification.title}</strong>
           <p>{notification.message?.slice(0, 100)}</p>
         </div>
-        <button className="toast-close" onClick={handleDismiss}>✕</button>
+        <button className="toast-close" onClick={handleDismiss}><X size={16} /></button>
       </div>
     </div>
   );

@@ -1,12 +1,9 @@
 """
 Alert Manager — Fire Alert Lifecycle Management
-Handles alert history, email notifications, and notification queue.
+Handles alert history, SMS/mobile notifications, and notification queue.
 """
 
 import copy
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, UTC
 from collections import deque
 import time
@@ -20,19 +17,17 @@ except Exception:
 
 
 class AlertManager:
-    """Manages fire alerts, history, email notifications, and notification queue."""
+    """Manages fire alerts, history, SMS/mobile notifications, and notification queue."""
 
     def __init__(self, max_history=500):
         self.alert_history = deque(maxlen=max_history)
         self.notification_queue = deque(maxlen=100)
-        self.email_config = None
-        self.email_enabled = False
         self.twilio_config = None
         self.twilio_enabled = False
         self.mobile_config = None
         self.mobile_enabled = False
         self.last_dispatch_time = 0  # To track notification cooldown
-        self.cooldown_seconds = 300  # 5 minutes global cooldown
+        self.cooldown_seconds = 1800  # 30 minutes cooldown to conserve SMS quota
 
     def _masked_config(self, config):
         """Return a safe-to-display copy of channel configuration."""
@@ -70,35 +65,61 @@ class AlertManager:
         return entry
 
     def dispatch_alert(self, alert):
-        """Dispatch alert to enabled channels and add delivery metadata."""
+        """Dispatch alert to enabled channels and add delivery metadata.
+        
+        SMS and mobile notifications are ONLY sent for critical/high alerts
+        that represent actual fire detections (not informational logs).
+        """
         level = alert.get("level", "low")
+        alert_type = alert.get("type", "")
         start = time.perf_counter()
         channel_status = {
             "dashboard": {"status": "sent"},
-            "email": {"status": "skipped"},
             "sms": {"status": "skipped"},
             "mobile": {"status": "skipped"},
         }
 
-        # Check cooldown to prevent notification spam
-        current_time = time.time()
-        in_cooldown = (current_time - self.last_dispatch_time) < self.cooldown_seconds
-        is_test = alert.get("type") == "test_alert"
+        # Only fire-related alerts should trigger SMS (not scan summaries or info logs)
+        is_fire_alert = alert_type in (
+            "critical_fire", "fire_cluster", "auto_scan", "test_alert",
+            "image_analysis", "live_camera", "sensor_threshold",
+        )
+        is_test = alert_type == "test_alert"
 
-        if level in ("critical", "high") and (not in_cooldown or is_test):
-            if self.email_enabled:
-                channel_status["email"] = self._send_email_alert(alert)
-            if self.twilio_enabled:
-                channel_status["sms"] = self._send_sms_alert(alert)
-            if self.mobile_enabled:
-                channel_status["mobile"] = self._send_mobile_push(alert)
-            
-            if not is_test:
-                self.last_dispatch_time = current_time
-        elif in_cooldown and not is_test:
-            channel_status["email"] = {"status": "skipped", "reason": "cooldown_active"}
-            channel_status["sms"] = {"status": "skipped", "reason": "cooldown_active"}
-            channel_status["mobile"] = {"status": "skipped", "reason": "cooldown_active"}
+        if not is_fire_alert:
+            # Informational/log entries never trigger SMS
+            channel_status["sms"] = {"status": "skipped", "reason": "not_fire_alert"}
+            channel_status["mobile"] = {"status": "skipped", "reason": "not_fire_alert"}
+        elif level not in ("critical", "high"):
+            channel_status["sms"] = {"status": "skipped", "reason": f"level_too_low ({level})"}
+            channel_status["mobile"] = {"status": "skipped", "reason": f"level_too_low ({level})"}
+        else:
+            # Check cooldown to prevent notification spam
+            current_time = time.time()
+            in_cooldown = (current_time - self.last_dispatch_time) < self.cooldown_seconds
+
+            if in_cooldown and not is_test:
+                remaining = int(self.cooldown_seconds - (current_time - self.last_dispatch_time))
+                print(f"[AlertManager] SMS dispatch skipped — cooldown active ({remaining}s remaining)")
+                channel_status["sms"] = {"status": "skipped", "reason": "cooldown_active"}
+                channel_status["mobile"] = {"status": "skipped", "reason": "cooldown_active"}
+            else:
+                # --- SMS ---
+                if self.twilio_enabled:
+                    print(f"[AlertManager] Sending SMS for {level.upper()} alert: {alert.get('title', 'N/A')}")
+                    channel_status["sms"] = self._send_sms_alert(alert)
+                    print(f"[AlertManager] SMS result: {channel_status['sms'].get('status')}")
+                else:
+                    channel_status["sms"] = {"status": "skipped", "reason": "twilio_not_enabled"}
+
+                # --- Mobile Push ---
+                if self.mobile_enabled:
+                    channel_status["mobile"] = self._send_mobile_push(alert)
+                else:
+                    channel_status["mobile"] = {"status": "skipped", "reason": "mobile_not_enabled"}
+
+                if not is_test:
+                    self.last_dispatch_time = current_time
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         alert["dispatch"] = {
@@ -162,7 +183,7 @@ class AlertManager:
         entry = {
             "type": "fire_detection_log",
             "level": "info",
-            "title": f"📊 Fire Detection Scan — {len(fires)} fires",
+            "title": f"[SUMMARY] Fire Detection Scan — {len(fires)} fires",
             "message": f"Detected {len(fires)} active fires. "
                        f"Critical: {severity_counts.get('critical', 0)}, "
                        f"High: {severity_counts.get('high', 0)}, "
@@ -176,36 +197,7 @@ class AlertManager:
         }
         self.alert_history.appendleft(entry)
 
-    # ── Email Configuration ────────────────────────────────────────
-
-    def configure_email(self, smtp_server, smtp_port, sender_email,
-                        sender_password, recipient_email):
-        """Configure email alert settings."""
-        smtp_port = int(smtp_port or 587)
-        self.email_config = {
-            "smtp_server": smtp_server,
-            "smtp_port": smtp_port,
-            "sender_email": sender_email,
-            "sender_password": sender_password,
-            "recipient_email": recipient_email,
-        }
-        self.email_enabled = all([
-            smtp_server,
-            smtp_port,
-            sender_email,
-            sender_password,
-            recipient_email,
-        ])
-        return {
-            "status": "configured" if self.email_enabled else "incomplete",
-            "recipient": recipient_email,
-            "enabled": self.email_enabled,
-        }
-
-    def disable_email(self):
-        """Disable email alerts."""
-        self.email_enabled = False
-        return {"status": "disabled"}
+    # ── Channel Configuration ───────────────────────────────────────
 
     def configure_twilio(self, account_sid, auth_token, from_number, to_number):
         """Configure Twilio SMS alert settings."""
@@ -246,11 +238,6 @@ class AlertManager:
     def get_channel_status(self):
         """Expose channel configuration state for the frontend."""
         return {
-            "email": {
-                "enabled": self.email_enabled,
-                "configured": bool(self.email_config),
-                "config": self._masked_config(self.email_config),
-            },
             "sms": {
                 "enabled": self.twilio_enabled,
                 "configured": bool(self.twilio_config),
@@ -275,96 +262,44 @@ class AlertManager:
             "timestamp": datetime.now(UTC).isoformat(),
         })
 
-    def _send_email_alert(self, alert):
-        """Send an email notification for a fire alert."""
-        if not self.email_config:
-            return {"status": "skipped", "reason": "not_configured"}
 
-        try:
-            cfg = self.email_config
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = f"🔥 FireWatch Alert: {alert.get('title', 'Fire Detected')}"
-            msg["From"] = cfg["sender_email"]
-            msg["To"] = cfg["recipient_email"]
-
-            severity = alert.get("level", "unknown").upper()
-            html = f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; background: #0a0e17; color: #f1f5f9; padding: 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background: #111827; border-radius: 12px; padding: 24px;
-                            border: 1px solid rgba(255,255,255,0.1);">
-                    <h1 style="color: #f97316; margin: 0 0 16px;">🔥 FireWatch AI — Fire Alert</h1>
-                    <div style="background: rgba(239,68,68,0.1); border-left: 4px solid #ef4444; padding: 12px 16px;
-                                border-radius: 4px; margin-bottom: 16px;">
-                        <strong style="color: #ef4444;">{severity} ALERT</strong>
-                        <p style="margin: 8px 0 0; color: #94a3b8;">{alert.get('message', '')}</p>
-                    </div>
-                    <table style="width: 100%; color: #94a3b8; font-size: 14px;">
-                        <tr><td><strong>Location:</strong></td>
-                            <td>{alert.get('latitude', 'N/A')}, {alert.get('longitude', 'N/A')}</td></tr>
-                        <tr><td><strong>Time:</strong></td>
-                            <td>{alert.get('timestamp', 'N/A')}</td></tr>
-                        <tr><td><strong>Type:</strong></td>
-                            <td>{alert.get('type', 'fire_detection')}</td></tr>
-                    </table>
-                    <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 16px 0;">
-                    <p style="color: #64748b; font-size: 12px;">
-                        Sent by FireWatch AI — Forest Fire Detection System
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
-
-            plain = (
-                f"FireWatch Alert\n\n"
-                f"Severity: {severity}\n"
-                f"Message: {alert.get('message', '')}\n"
-                f"Location: {alert.get('latitude', 'N/A')}, {alert.get('longitude', 'N/A')}\n"
-                f"Time: {alert.get('timestamp', 'N/A')}\n"
-                f"Type: {alert.get('type', 'fire_detection')}\n"
-            )
-
-            msg.attach(MIMEText(plain, "plain"))
-            msg.attach(MIMEText(html, "html"))
-
-            smtp_cls = smtplib.SMTP_SSL if int(cfg["smtp_port"]) == 465 else smtplib.SMTP
-            with smtp_cls(cfg["smtp_server"], cfg["smtp_port"]) as server:
-                if int(cfg["smtp_port"]) != 465:
-                    server.starttls()
-                server.login(cfg["sender_email"], cfg["sender_password"])
-                server.send_message(msg)
-
-            print(f"[AlertManager] Email sent to {cfg['recipient_email']}")
-            return {"status": "sent", "recipient": cfg["recipient_email"]}
-
-        except Exception as e:
-            print(f"[AlertManager] Email failed: {e}")
-            return {"status": "failed", "error": str(e)}
 
     def _send_sms_alert(self, alert):
         """Send a Twilio SMS alert when configured."""
         if not self.twilio_config:
             return {"status": "skipped", "reason": "not_configured"}
         if TwilioClient is None:
-            return {"status": "failed", "error": "twilio_package_missing"}
+            return {"status": "failed", "error": "twilio_package_missing — run: pip install twilio"}
 
         try:
             cfg = self.twilio_config
-            message = (
-                f"FireWatch {alert.get('level', 'high').upper()} alert: "
-                f"{alert.get('message', 'Fire detected')[:140]}"
+            level = alert.get("level", "high").upper()
+            title = alert.get("title", "Fire Alert")
+            detail = alert.get("message", "Fire detected")[:120]
+
+            # Build location line if coordinates are available
+            lat = alert.get("latitude")
+            lng = alert.get("longitude")
+            location = f"\nLocation: {lat:.3f}, {lng:.3f}" if lat and lng else ""
+
+            body = (
+                f"[FireWatch AI] {level} ALERT\n"
+                f"{title}\n"
+                f"{detail}{location}"
             )
+
             client = TwilioClient(cfg["account_sid"], cfg["auth_token"])
             resp = client.messages.create(
-                body=message,
+                body=body,
                 from_=cfg["from_number"],
                 to=cfg["to_number"],
             )
+            print(f"[AlertManager] SMS sent successfully — SID: {resp.sid}")
             return {"status": "sent", "sid": resp.sid, "to": cfg["to_number"]}
         except Exception as e:
-            print(f"[AlertManager] SMS failed: {e}")
-            return {"status": "failed", "error": str(e)}
+            error_msg = str(e)
+            print(f"[AlertManager] SMS FAILED: {error_msg}")
+            return {"status": "failed", "error": error_msg}
 
     def _send_mobile_push(self, alert):
         """Send mobile push through configured webhook (e.g., Firebase relay)."""

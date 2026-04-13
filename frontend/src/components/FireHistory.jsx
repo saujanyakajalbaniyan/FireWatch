@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../config';
+import { ClipboardList, Flame, BarChart2, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 
 const severityColor = {
   critical: 'var(--severity-critical)',
@@ -62,7 +63,7 @@ export default function FireHistory({ fires }) {
   return (
     <div className="history-page">
       <div className="page-header">
-        <h1 className="page-title">📋 Fire History Log</h1>
+        <h1 className="page-title"><ClipboardList size={28} style={{marginRight: '8px'}} /> Fire History Log</h1>
         <p className="page-subtitle">Track all fire detections and alerts over time</p>
       </div>
 
@@ -72,19 +73,19 @@ export default function FireHistory({ fires }) {
           className={`htab ${activeTab === 'fires' ? 'active' : ''}`}
           onClick={() => setActiveTab('fires')}
         >
-          🔥 Current Fires ({fires.length})
+          <Flame size={16} /> Current Fires ({fires.length})
         </button>
         <button
           className={`htab ${activeTab === 'snapshots' ? 'active' : ''}`}
           onClick={() => setActiveTab('snapshots')}
         >
-          📊 Detection Snapshots ({history.length})
+          <BarChart2 size={16} /> Detection Snapshots ({history.length})
         </button>
         <button
           className={`htab ${activeTab === 'alerts' ? 'active' : ''}`}
           onClick={() => setActiveTab('alerts')}
         >
-          ⚠️ Alert History ({alertHistory.length})
+          <AlertTriangle size={16} /> Alert History ({alertHistory.length})
         </button>
 
       </div>
@@ -167,7 +168,7 @@ export default function FireHistory({ fires }) {
               <div key={idx} className="snapshot-card">
                 <div className="snapshot-header">
                   <span className="snapshot-time">
-                    🕐 {new Date(snap.timestamp).toLocaleString()}
+                    <Clock size={14} style={{display:'inline', marginRight:'4px'}} /> {new Date(snap.timestamp).toLocaleString()}
                   </span>
                   <span className="snapshot-count fire-text">{snap.total_fires} fires</span>
                 </div>
@@ -193,7 +194,7 @@ export default function FireHistory({ fires }) {
             ))}
             {history.length === 0 && (
               <div className="empty-state">
-                <div className="empty-state-icon">📋</div>
+                <div className="empty-state-icon"><ClipboardList size={32} /></div>
                 <p>No detection snapshots yet. Data will appear after the first scan.</p>
               </div>
             )}
@@ -213,13 +214,13 @@ export default function FireHistory({ fires }) {
                 </div>
                 <p className="alert-message">{alert.message}</p>
                 <div className="alert-time">
-                  🕐 {alert.logged_at ? new Date(alert.logged_at).toLocaleString() : 'N/A'}
+                  <Clock size={14} style={{display:'inline', marginRight:'4px'}} /> {alert.logged_at ? new Date(alert.logged_at).toLocaleString() : 'N/A'}
                 </div>
               </div>
             ))}
             {alertHistory.length === 0 && (
               <div className="empty-state">
-                <div className="empty-state-icon">✅</div>
+                <div className="empty-state-icon"><CheckCircle size={32} /></div>
                 <p>No alerts in history.</p>
               </div>
             )}

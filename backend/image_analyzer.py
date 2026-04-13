@@ -282,7 +282,7 @@ class ImageAnalyzer:
 
         if severity == "critical":
             recs.extend([
-                {"type": "danger", "title": "🚨 Critical Fire Alert",
+                {"type": "danger", "title": "[CRITICAL] Critical Fire Alert",
                  "message": "Active high-intensity fire detected. Immediate emergency response recommended."},
                 {"type": "action", "title": "Evacuate Area",
                  "message": "If this is a real-time image, initiate evacuation protocols in the affected area."},
@@ -291,7 +291,7 @@ class ImageAnalyzer:
             ])
         elif severity == "high":
             recs.extend([
-                {"type": "warning", "title": "⚠️ High Fire Activity",
+                {"type": "warning", "title": "[HIGH] High Fire Activity",
                  "message": "Significant fire activity detected. Monitor closely and prepare response teams."},
                 {"type": "action", "title": "Deploy Monitoring",
                  "message": "Set up continuous satellite monitoring for the affected region."},

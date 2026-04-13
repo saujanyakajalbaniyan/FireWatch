@@ -1,10 +1,11 @@
 import React from 'react';
+import { CheckCircle, MapPin, Clock } from 'lucide-react';
 
 export default function AlertsPanel({ alerts }) {
   if (!alerts || alerts.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">✅</div>
+        <div className="empty-state-icon"><CheckCircle size={32} /></div>
         <p>No active alerts at this time.</p>
       </div>
     );
@@ -20,8 +21,8 @@ export default function AlertsPanel({ alerts }) {
           </div>
           <p className="alert-message">{alert.message}</p>
           <div className="alert-time">
-            📍 {alert.latitude?.toFixed(2)}, {alert.longitude?.toFixed(2)} &nbsp;|&nbsp;
-            🕐 {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'N/A'}
+            <MapPin size={12} style={{display:'inline'}} /> {alert.latitude?.toFixed(2)}, {alert.longitude?.toFixed(2)} &nbsp;|&nbsp;
+            <Clock size={12} style={{display:'inline'}} /> {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'N/A'}
           </div>
         </div>
       ))}
